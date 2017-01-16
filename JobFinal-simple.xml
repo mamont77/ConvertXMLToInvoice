@@ -1,0 +1,43 @@
+<!-- JobFinal.xml - A simple job   -->
+<Root>
+	<Job>
+		<Client>
+			<ID>Realphotos</ID>
+			<DisplayName>Ruslan Piskarev</DisplayName>
+		</Client>
+		<Production>
+			<!-- an Excel file detailing the work and providing a contact sheet per job,               -->
+			<!-- which will be attached to the zoho invoice                                            -->
+			<WorkStatement>\WorkStatements\M234.xls</WorkStatement>
+			<InvoiceItems>
+				<Product>
+					<ID>"ALC_GS"</ID>
+					<Description>Knockout With Color Background</Description>
+					<!-- counts come from order information                                            -->
+					<!-- The tick count is "one per individual" - that's all we can predict from order -->
+					<!-- Actual overage will be reported by service bureau                             -->
+					<TickCount>15</TickCount>
+					<!-- ClientTickPrice has been replaced with actual per-tick client price -->
+					<PricePerTick>.22</PricePerTick>
+				</Product>
+				<Product>
+					<ID>"ALC_Cr"</ID>
+					<Description>Cropping</Description>
+					<PoseCount>15</PoseCount>
+					<!-- PricePerPose reflects that the user did keying + cropping                     -->
+					<PricePerPose>.05</PricePerPose>
+				</Product>
+				<Product>
+					<ID>"Overage-PP"</ID>
+					<Description>Extra time required for production - prepaid</Description>
+					<TickCount>5</TickCount>
+					<!-- ClientTickPrice has been replaced with actual per-tick client price -->
+					<PricePerTick>.22</PricePerTick>
+				</Product>
+			</InvoiceItems>
+		</Production>
+	</Job>
+	<Meta>
+		<DBVersion>20151207</DBVersion>
+	</Meta>
+</Root>
