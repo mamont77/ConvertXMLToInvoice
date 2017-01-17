@@ -31,15 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $xml_data = simplexml_load_file($temp_name);
 
-      $invoice_attachment = (string) $xml_data->Job->Production->WorkStatement;
+      $contact_id = (string) $xml_data->Job->Client->contactID;
 
-      //$client_id           = (string) $xml_data->Job->Client->ID;
-      $client_display_name = (string) $xml_data->Job->Client->DisplayName;
-
-      if ($client_id == '') {
-//        throw new Exception('Client ID not found in XML.');
-//        logger('Client ID not found in XML', $client_id);
-        logger('Client not found in XML by DisplayName', $client_display_name);
+      if ($contact_id == '') {
+        logger('Client not found in XML by contactID', $contact_id);
       }
 
       $zoho = new ZohoBooksApi(
@@ -47,32 +42,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config->get('zoho.organizationID')
       );
 
-      $contact = $zoho->ContactsList(
-        array('contact_name' => $client_display_name)
-      );
+      //TODO: crmResp = zoho.crm.searchRecords("Leads", "(Custom Field 1|=| test Or Custom Field 2|=| test@zohocorp.com Or Custom Field 3|=| 12345)");
 
-      if (empty($contact)) {
-//        throw new Exception('Contact not found in Zoho.');
+      try {
+        $contact = $zoho->ContactsGet($contact_id);
+        logger('Contact was found in Zoho with ID', $contact_id);
+      } catch (Exception $e) {
+        logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
         logger(
-          'Contact not found in Zoho by DisplayName',
-          $client_display_name
+          'Contact not found in Zoho by contactID',
+          $contact_id
         );
+        exit;
       }
 
-      $contact_id = $contact[0]['contact_id'];
-      logger('Contact was found in Zoho with ID', $contact_id);
-
+      // Preparing an Invoice.
       $invoice_items = array();
       foreach ($xml_data->Job->Production->InvoiceItems->Product as $key => $item) {
-        $item         = (array) $item;
-        $rate_mapping = array(
+        $item             = (array) $item;
+        $rate_mapping     = array(
           'PricePerInd',
           'PricePerRender',
           'PricePerTick',
           'PricePerSheet',
           'PricePerPose',
         );
-        $quantity_mapping  = array(
+        $quantity_mapping = array(
           'RenderCount',
           'IndCount',
           'TickCount',
@@ -96,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $invoice_items[] = array(
-          'name' => (string) $item['ID'],
+          'name' => trim((string) $item['ID'], '""'),
           'description' => (string) $item['Description'],
           'quantity' => $current_quantity,
           'rate' => $current_rate_type,
@@ -105,7 +100,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $invoce_data = array(
         'customer_id' => $contact_id,
-        // Fixme: Allowed Values: paypal, authorize_net, payflow_pro, stripe, 2checkout and braintree.
+        // Fixme: Out of scope.
+        // Allowed Values:
+        // paypal, authorize_net, payflow_pro, stripe, 2checkout and braintree.
         'payment_options' => array(
           'payment_gateways' => array(
             0 => array(
@@ -121,18 +118,124 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'line_items' => $invoice_items,
       );
 
+      if ($xml_data->Job->Production->Responses->CommentsToTheClient) {
+        $invoce_data['notes'] = (string) $xml_data->Job->Production->Responses->CommentsToTheClient;
+      }
+
       logger('Creating invoice: Try send the data to Zoho', $invoce_data);
 
-      $invoice = $zoho->InvoicesCreate($invoce_data);
+      try {
+//        $invoice        = $zoho->InvoicesCreate($invoce_data);
 
-      $invoice_id     = $invoice['invoice_id'];
-      $invoice_number = $invoice['invoice_number'];
+        $invoice['invoice_id'] = '159812000000849219';
 
-      logger(
-        'Invoice has been created with ID/NUMBER',
-        $invoice_id . '/' . $invoice_number
-      );
-      echo '<a href="https://books.zoho.com/app#/invoices/' . $invoice_id . '" target="_blank">Open in Zoho!</a>';
+        $invoice_id     = $invoice['invoice_id'];
+        $invoice_number = $invoice['invoice_number'];
+        logger(
+          'Invoice has been created with ID / NUMBER',
+          $invoice_id . ' / ' . $invoice_number
+        );
+        echo '<a href="https://books.zoho.com/app#/invoices/'
+             . $invoice_id
+             . '" target="_blank">Open in Zoho!</a>'
+             . ' Or upload <a href="/">another</a> XML.<br />';
+      } catch (Exception $e) {
+        logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+        exit;
+      }
+
+      if ($xml_data->Job->Production->WorkStatement) {
+        $invoice_attachment = (string) $xml_data->Job->Production->WorkStatement;
+        if (!empty($_FILES['form-xlsx']['name']) && $invoice_attachment !== '') {
+          if (move_uploaded_file(
+            $_FILES['form-xlsx']['tmp_name'],
+            __DIR__ . $invoice_attachment
+          )) {
+            logger(
+              'XLSX file has been uploaded and renamed to',
+              $invoice_attachment
+            );
+            logger('Append the attachment to the invoice', $invoice_number);
+
+            echo '<pre>';
+            print_r($invoice_attachment);
+            echo '</pre>';
+
+
+            echo '<pre>';
+            print_r($_FILES['form-xlsx']);
+            echo '</pre>';
+
+
+            $parameters = array(
+              'content' => curl_file_create($invoice_attachment, $_FILES['form-xlsx']['type'] , basename('M456.xls')),
+            );
+
+            try {
+              $attachment = $zoho->makeApiRequest(
+                'invoices/' . $invoice_id . '/attachment',
+                'POST',
+                $parameters
+              );
+            } catch (Exception $e) {
+              logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+
+            }
+
+
+            exit;
+
+          }
+          else {
+            logger('Error during file uploading', $_FILES['form-xlsx']['name']);
+          }
+        }
+
+      }
+
+      exit;
+
+
+
+      if ($invoice_attachment !== '' && $_FILES['form-xlsx']['name']) {
+
+//        $parameters = array(
+//          'content' => base64_encode(
+//            file_get_contents(__DIR__ . $invoice_attachment)
+//          ),
+//        );
+//        $parameters = base64_encode(
+//          file_get_contents(__DIR__ . $invoice_attachment)
+//        );
+//        $parameters = file_get_contents(__DIR__ . $invoice_attachment);
+//        $parameters = json_decode(array(base64_encode(file_get_contents(__DIR__ . $invoice_attachment))));
+//        $parameters = __DIR__ . $invoice_attachment;
+        $parameters = $_FILES['form-xlsx'];
+
+        echo '<pre>';
+        print_r($parameters);
+        echo '</pre>';
+//        exit;
+
+
+        $attachment = $zoho->makeApiRequest(
+          'invoices/' . $invoice_id . '/attachment',
+          'POST',
+          $parameters
+        );
+
+        echo '<pre>';
+        var_dump($attachment);
+        echo '</pre>';
+
+
+      }
+
+      // For some testing.
+//      $temporary_invoice = $zoho->InvoicesGet('159812000000833591');
+//      echo '<pre>';
+//      print_r($temporary_invoice);
+//      echo '</pre>';
 
       exit;
 
@@ -184,49 +287,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h1>Send XML to Zoho Books API</h1>
     </div>
 </div>
-<?php if (!empty($emailSent)): ?>
-    <div class="col-md-6 col-md-offset-3">
-        <div class="alert alert-success text-center"><?php echo $config->get(
-            'messages.success'
-          ); ?></div>
-    </div>
-<?php else: ?>
-  <?php if (!empty($hasError)): ?>
-        <div class="col-md-5 col-md-offset-4">
-            <div class="alert alert-danger text-center"><?php echo $config->get(
-                'messages.error'
-              ); ?></div>
-        </div>
+
+<div class="container">
+  <?php if (!empty($emailSent)): ?>
+      <div class="alert alert-success text-center"><?php echo $config->get(
+          'messages.success'
+        ); ?></div>
+  <?php else: ?>
+    <?php if (!empty($hasError)): ?>
+          <div class="alert alert-danger text-center"><?php echo $config->get(
+              'messages.error'
+            ); ?></div>
+    <?php endif; ?>
+
+      <div class="row">
+          <form action="<?php echo $_SERVER['REQUEST_URI']; ?>"
+                enctype="multipart/form-data" id="zoho-form"
+                class="form-horizontal" method="post">
+              <div class="form-group">
+                  <label for="form-attachment"
+                         class="col-lg-2 control-label"><?php echo $config->get(
+                      'fields.attachment'
+                    ); ?></label>
+                  <div class="col-lg-10">
+                      <input class="form-control" id="form-attachment"
+                             name="form-attachment" type="file"
+                             placeholder="<?php echo $config->get(
+                               'fields.attachment'
+                             ); ?>" required>
+                  </div>
+              </div>
+              <div class="form-group">
+                  <label for="form-attachment"
+                         class="col-lg-2 control-label"><?php echo $config->get(
+                      'fields.xlsx'
+                    ); ?></label>
+                  <div class="col-lg-10">
+                      <input class="form-control" id="form-xlsx"
+                             name="form-xlsx" type="file"
+                             placeholder="<?php echo $config->get(
+                               'fields.xlsx'
+                             ); ?>">
+                      <p class="help-block">The script can't get XLSX file from
+                          XML, so for testing we should upload the file too
+                          (optional).
+                      </p>
+                  </div>
+              </div>
+              <div class="form-group">
+                  <div class="col-lg-offset-2 col-lg-10">
+                      <button type="submit"
+                              class="btn btn-default"><?php echo $config->get(
+                          'fields.btn-send'
+                        ); ?></button>
+                  </div>
+              </div>
+          </form>
+      </div>
   <?php endif; ?>
 
-    <div class="col-md-6 col-md-offset-3">
-        <form action="<?php echo $_SERVER['REQUEST_URI']; ?>"
-              enctype="multipart/form-data" id="zoho-form"
-              class="form-horizontal" method="post">
-            <div class="form-group">
-                <label for="form-attachment"
-                       class="col-lg-2 control-label"><?php echo $config->get(
-                    'fields.attachment'
-                  ); ?></label>
-                <div class="col-lg-10">
-                    <input class="form-control" id="form-attachment"
-                           name="form-attachment" type="file"
-                           placeholder="<?php echo $config->get(
-                             'fields.attachment'
-                           ); ?>" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <div class="col-lg-offset-2 col-lg-10">
-                    <button type="submit"
-                            class="btn btn-default"><?php echo $config->get(
-                        'fields.btn-send'
-                      ); ?></button>
-                </div>
-            </div>
-        </form>
-    </div>
-<?php endif; ?>
+</div>
+<footer class="bs-docs-footer">
+    <div class="container">
+        <ul class="bs-docs-footer-links">
+            <li><a href="/contacts-list.php" target="_blank">Get ALL
+                    Contacts</a>
+            </li>
+        </ul>
+</footer>
 
 </body>
 </html>
