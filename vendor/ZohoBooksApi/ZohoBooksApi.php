@@ -182,18 +182,25 @@ class ZohoBooksApi {
   }
 
   /**
-   * Make actual API request using cURL
+   * Make actual API request using cURL.
    *
    * @param string $url URL to send request to (relative, without domain)
    * @param string $method HTTP method to use (GET, POST, DELETE, etc)
    * @param array $query Array of parameters to send
    * @param boolean $raw If true - do not do JSON decode (default = false)
+   * @param bool $is_attachment
+   *
+   * @return array
+   * @throws \ZohoBooksApiException
+   * @throws \ZohoBooksApiHttpException
+   * @throws \ZohoBooksApiRequestException
    */
   public function makeApiRequest(
     $url,
     $method = 'GET',
     $query = array(),
-    $raw = FALSE
+    $raw = FALSE,
+    $is_attachment = FALSE
   ) {
     // reset lastRequest
     $this->lastRequest = array(
@@ -219,14 +226,27 @@ class ZohoBooksApi {
 
     // init cURL
     $ch = curl_init();
+    curl_setopt($ch, CURLOPT_VERBOSE, TRUE);
+    $verbose = fopen('php://temp', 'w+');
+    curl_setopt($ch, CURLOPT_STDERR, $verbose);
+
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
-    curl_setopt(
-      $ch,
-      CURLOPT_HTTPHEADER,
-      array('Accept: application/json', 'Expect:')
-    );
+    if ($is_attachment === TRUE) {
+      curl_setopt(
+        $ch,
+        CURLOPT_HTTPHEADER,
+        array('Content-Type: multipart/form-data')
+      );
+    }
+    else {
+      curl_setopt(
+        $ch,
+        CURLOPT_HTTPHEADER,
+        array('Accept: application/json', 'Expect:')
+      );
+    }
 
     // add auth info to URL
     $auth    = array(
@@ -240,15 +260,39 @@ class ZohoBooksApi {
       $fullURL .= $query ? '&' . http_build_query($query) : '';
     }
     else {
-      $Q = array('JSONString' => json_encode($query));
-      curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($Q));
+      if ($is_attachment === TRUE) {
+        curl_setopt($ch, CURLOPT_POST, TRUE); // enable posting
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $query);
+//        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($query));
+      } else {
+        $Q = array('JSONString' => json_encode($query));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($Q));
+      }
+//      $Q = array('JSONString' => json_encode($query));
+//      curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($Q));
     }
+
+
+
+    echo '<pre>';
+    print_r($query);
+    echo '</pre>';
 
     // set URL
     curl_setopt($ch, CURLOPT_URL, $fullURL);
 
     // execute request
     $this->lastRequest['dataRaw'] = curl_exec($ch);
+
+    if ($this->lastRequest['dataRaw'] === FALSE) {
+      printf("cUrl error (#%d): %s<br>\n", curl_errno($ch),
+        htmlspecialchars(curl_error($ch)));
+    }
+
+    rewind($verbose);
+    $verboseLog = stream_get_contents($verbose);
+
+    echo "Verbose information:\n<pre>", htmlspecialchars($verboseLog), "</pre>\n";
 
     // check for timeout
     if ($this->lastRequest['dataRaw'] === FALSE) {

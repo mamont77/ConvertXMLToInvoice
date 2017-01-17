@@ -6,7 +6,7 @@
 			<DisplayName>Ruslan Piskarev</DisplayName>
 		</Client>
 		<Production>
-			<WorkStatement>\WorkStatements\M456.xls</WorkStatement>
+			<WorkStatement>\WorkStatements\test.jpg</WorkStatement>
 			<InvoiceItems>
 				<Product>
 					<ID>"Prep_Ind"</ID>
