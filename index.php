@@ -252,6 +252,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // STEP 2: Handle Payment.
 
+      /**
+       * For testing/debugging.
+       */
+//      $contact_id       = '159812000000572643';
+//      $invoice['total'] = '500';
+
+      $credit_notes = $zoho->CreditNotesList(
+        array('customer_id' => $contact_id, 'status' => 'open')
+      );
+
+      if (is_array($credit_notes)) {
+        if (!empty($credit_notes)) {
+          $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
+          $credit_note    = $zoho->CreditNotesGet($credit_note_id);
+          $total          = $credit_note['total'];
+
+          if ($total >= $invoice['total']) {
+            try {
+              $parameters = array(
+                'apply_creditnotes' => array(
+                  'creditnote_id' => $credit_note_id,
+                  'amount_applied' => $invoice['total'],
+                ),
+              );
+              $result     = $zoho->makeApiRequest(
+                'invoices/' . $invoice_id . '/credits',
+                'POST',
+                $parameters
+              );
+              $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+            } catch (Exception $e) {
+              $tools->logger(
+                'Zoho Exception',
+                $zoho->lastRequest['dataRaw'],
+                'error'
+              );
+            }
+          }
+
+        }
+        else {
+          // Assume a client doesn't have any credits.
+        }
+      }
+
+
       // STEP 3: Send Email.
 
       // STEP 4: Tidy Up
