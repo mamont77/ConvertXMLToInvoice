@@ -37,6 +37,13 @@ class ZohoBooksApi {
   );
 
   /**
+   * Enabling debug mode.
+   *
+   * @var bool
+   */
+  public $is_debug = FALSE;
+
+  /**
    * Base URL for Zoho Books API
    */
   private $baseURL = 'https://books.zoho.com/api/v3/';
@@ -71,7 +78,6 @@ class ZohoBooksApi {
    */
   private $methods = array();
 
-  private $is_debug = FALSE;
 
   /**
    * Map of actions to HTTP methods
@@ -190,7 +196,6 @@ class ZohoBooksApi {
    * @param string $method HTTP method to use (GET, POST, DELETE, etc)
    * @param array $query Array of parameters to send
    * @param boolean $raw If true - do not do JSON decode (default = false)
-   * @param bool $attachment
    *
    * @return array
    * @throws \ZohoBooksApiException
@@ -201,8 +206,7 @@ class ZohoBooksApi {
     $url,
     $method = 'GET',
     $query = array(),
-    $raw = FALSE,
-    $attachment = FALSE
+    $raw = FALSE
   ) {
     // reset lastRequest
     $this->lastRequest = array(
@@ -231,30 +235,17 @@ class ZohoBooksApi {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
-    if ($this->is_debug === TRUE) {
-      curl_setopt($ch, CURLOPT_VERBOSE, TRUE);
-      $verbose = fopen('php://temp', 'w+');
-      curl_setopt($ch, CURLOPT_STDERR, $verbose);
-    }
     curl_setopt(
       $ch,
       CURLOPT_HTTPHEADER,
       array('Accept: application/json', 'Expect:')
     );
-//    if ($attachment !== FALSE) {
-//      curl_setopt(
-//        $ch,
-//        CURLOPT_HTTPHEADER,
-//        array('Content-Type: multipart/form-data')
-//      );
-//    }
-//    else {
-//      curl_setopt(
-//        $ch,
-//        CURLOPT_HTTPHEADER,
-//        array('Accept: application/json', 'Expect:')
-//      );
-//    }
+
+    if ($this->is_debug === TRUE) {
+      curl_setopt($ch, CURLOPT_VERBOSE, TRUE);
+      $verbose = fopen('php://temp', 'w+');
+      curl_setopt($ch, CURLOPT_STDERR, $verbose);
+    }
 
     // add auth info to URL
     $auth    = array(
@@ -268,11 +259,20 @@ class ZohoBooksApi {
       $fullURL .= $query ? '&' . http_build_query($query) : '';
     }
     else {
-      $Q = array('JSONString' => json_encode($query));
-      curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($Q));
-//      if ($attachment !== FALSE) {
-//        curl_setopt($ch, CURLOPT_POST, TRUE); // enable posting
-//      }
+      if ($query instanceof CURLFile) {
+        curl_setopt($ch, CURLOPT_POST, TRUE); // Enable posting.
+        curl_setopt(
+          $ch,
+          CURLOPT_POSTFIELDS,
+          array(
+            'attachment' => $query,
+          )
+        );
+      }
+      else {
+        $Q = array('JSONString' => json_encode($query));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($Q));
+      }
     }
 
     // set URL
@@ -283,14 +283,19 @@ class ZohoBooksApi {
 
     if ($this->is_debug === TRUE) {
       if ($this->lastRequest['dataRaw'] === FALSE) {
-        printf("cUrl error (#%d): %s<br>\n", curl_errno($ch),
-          htmlspecialchars(curl_error($ch)));
+        printf(
+          "cUrl error (#%d): %s<br>\n",
+          curl_errno($ch),
+          htmlspecialchars(curl_error($ch))
+        );
       }
 
       rewind($verbose);
       $verboseLog = stream_get_contents($verbose);
 
-      echo "Verbose information:\n<pre>", htmlspecialchars($verboseLog), "</pre>\n";
+      echo "Verbose information:\n<pre>", htmlspecialchars(
+        $verboseLog
+      ), "</pre>\n";
     }
 
     // check for timeout
@@ -335,7 +340,8 @@ class ZohoBooksApi {
     // verify zoho code
     if ($this->lastRequest['zohoCode'] != 0) {
       throw new ZohoBooksApiRequestException(
-        'Zoho Books returned code #' . $this->lastRequest['zohoCode'] . ' "' . $this->lastRequest['zohoMessage'] . '"',
+        'Zoho Books returned code #' . $this->lastRequest['zohoCode']
+        . ' "' . $this->lastRequest['zohoMessage'] . '"',
         $this->lastRequest['zohoCode']
       );
     }
@@ -401,9 +407,9 @@ class ZohoBooksApi {
     // check if we have required number of arguments
     if (!in_array(count($args), array($paramsCount, $paramsCount + 1))) {
       throw new ZohoBooksApiException(
-        'method "' . $method . '" requires ' . $paramsCount . ' or ' . ($paramsCount + 1) . ' arguments, ' . count(
-          $args
-        ) . ' received', 3
+        'method "' . $method . '" requires ' . $paramsCount
+        . ' or ' . ($paramsCount + 1) . ' arguments, '
+        . count($args) . ' received', 3
       );
     }
 

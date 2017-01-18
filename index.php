@@ -155,104 +155,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               'XLSX file has been uploaded and renamed to',
               $invoice_attachment
             );
+
+            // Attach a file.
+            $attachment = __DIR__ . $invoice_attachment;
+            $mime_type  = mime_content_type($attachment);
+            $file_name  = basename($attachment);
+            $parameters = new CURLFile($attachment, $mime_type, $file_name);
             logger('Append the attachment to the invoice', $invoice_number);
-
-//            echo '<pre>';
-//            print_r($invoice_attachment);
-//            echo '</pre>';
-
-
-//            echo '<pre>';
-//            print_r($_FILES['form-xlsx']);
-//            echo '</pre>';
-
-
-            //Zoho Exception: {"code":33003,"message":"No Documents have been attached."}
-//            $attachment = $_FILES['form-xlsx'];
-
-            //Zoho Exception: {"code":2,"message":"The request passed is not valid."}
-//            $attachment = array(
-//              'content' => new \CurlFile(
-//                __DIR__ . $invoice_attachment,
-//                $_FILES['form-xlsx']['type'],
-//                basename($invoice_attachment)
-//              ),
-//            );
-
-            //Zoho Exception: {"code":2,"message":"The request passed is not valid."}
-//            $attachment = array(
-//              new \CurlFile(
-//                __DIR__ . $invoice_attachment,
-//                $_FILES['form-xlsx']['type'],
-//                basename($invoice_attachment)
-//              ),
-//            );
-
-            //Zoho Exception: {"code":33003,"message":"No Documents have been attached."}
-//            $attachment = new \CurlFile(
-//              __DIR__ . $invoice_attachment,
-//              $_FILES['form-xlsx']['type'],
-//              basename($invoice_attachment)
-//            );
-
-            //Zoho Exception: {"code":2,"message":"Invalid value passed for content"}
-//            $attachment = array(
-//              'content' => file_get_contents(__DIR__ . $invoice_attachment),
-//            );
-
-            //Zoho Exception: {"code":2,"message":"Invalid value passed for 0"}
-//            $attachment = array(
-//              file_get_contents(__DIR__ . $invoice_attachment),
-//            );
-
-            //Zoho Exception: {"code":2,"message":"The request passed is not valid."}
-//            $attachment = file_get_contents(__DIR__ . $invoice_attachment);
-
-            //Zoho Exception: {"code":2,"message":"Invalid value passed for content"}
-//            $attachment = array(
-//              'content' => base64_encode(
-//                file_get_contents(__DIR__ . $invoice_attachment)
-//              ),
-//            );
-
-            // Zoho Exception: {"code":2,"message":"Invalid value passed for 0"}
-//            $attachment = array(
-//              base64_encode(
-//                file_get_contents(__DIR__ . $invoice_attachment)
-//              ),
-//            );
-
-            // Zoho Exception: {"code":2,"message":"The request passed is not valid."}
-            $attachment = base64_encode(
-              file_get_contents(__DIR__ . $invoice_attachment)
-            );
-
-            $parameters = array(
-              'can_send_in_mail' => TRUE,
-//              'attachment' => $attachment,
-            );
-
             try {
               $result = $zoho->makeApiRequest(
                 'invoices/' . $invoice_id . '/attachment',
                 'POST',
-                $parameters,
-                FALSE,
-                TRUE
+                $parameters
               );
-
-              echo '<pre>';
-              print_r($result);
-              echo '</pre>';
-
-
+              logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
             } catch (Exception $e) {
               logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
-
             }
 
-
-            exit;
+            // Update "can_send_in_mail" param.
+            $parameters = array(
+              'can_send_in_mail' => TRUE,
+            );
+            try {
+              $result = $zoho->makeApiRequest(
+                'invoices/' . $invoice_id . '/attachment',
+                'PUT',
+                $parameters
+              );
+              logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+            } catch (Exception $e) {
+              logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+            }
 
           }
           else {
@@ -263,41 +197,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
 
       exit;
-
-
-      if ($invoice_attachment !== '' && $_FILES['form-xlsx']['name']) {
-
-//        $parameters = array(
-//          'content' => base64_encode(
-//            file_get_contents(__DIR__ . $invoice_attachment)
-//          ),
-//        );
-//        $parameters = base64_encode(
-//          file_get_contents(__DIR__ . $invoice_attachment)
-//        );
-//        $parameters = file_get_contents(__DIR__ . $invoice_attachment);
-//        $parameters = json_decode(array(base64_encode(file_get_contents(__DIR__ . $invoice_attachment))));
-//        $parameters = __DIR__ . $invoice_attachment;
-        $attachment = $_FILES['form-xlsx'];
-
-        echo '<pre>';
-        print_r($attachment);
-        echo '</pre>';
-//        exit;
-
-
-        $attachment = $zoho->makeApiRequest(
-          'invoices/' . $invoice_id . '/attachment',
-          'POST',
-          $attachment
-        );
-
-        echo '<pre>';
-        var_dump($attachment);
-        echo '</pre>';
-
-
-      }
 
       // For some testing.
 //      $temporary_invoice = $zoho->InvoicesGet('159812000000833591');
