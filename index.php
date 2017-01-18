@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $invoice_id     = $invoice['invoice_id'];
         $invoice_number = $invoice['invoice_number'];
-        $invoice_total  = $invoice['currency_symbol'] . $invoice['invoice_id'];
+        $invoice_total  = $invoice['currency_symbol'] . $invoice['total'];
         $tools->logger(
           'Invoice has been created with ID / NUMBER',
           $invoice_id . ' / ' . $invoice_number
