@@ -80,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config->get('zoho.organizationID')
       );
 
+      // STEP 1: ConvertXMLToInvoice.
       try {
         $contact = $zoho->ContactsGet($contact_id);
         $tools->logger('Contact was found in Zoho with ID', $contact_id);
@@ -185,10 +186,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $invoice_id     = $invoice['invoice_id'];
         $invoice_number = $invoice['invoice_number'];
+        $invoice_total  = $invoice['currency_symbol'] . $invoice['invoice_id'];
         $tools->logger(
           'Invoice has been created with ID / NUMBER',
           $invoice_id . ' / ' . $invoice_number
         );
+        $tools->logger('Invoice total', $invoice_total);
         echo '<a href="https://books.zoho.com/app#/invoices/'
              . $invoice_id
              . '" target="_blank">Open in Zoho!</a>'
@@ -244,8 +247,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'error'
           );
         }
-        unlink(__DIR__ . $invoice_attachment);
+//        unlink(__DIR__ . $invoice_attachment);
       }
+
+      // STEP 2: Handle Payment.
+
+      // STEP 3: Send Email.
+
+      // STEP 4: Tidy Up
 
 
       exit;
