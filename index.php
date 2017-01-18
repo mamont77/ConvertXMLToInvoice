@@ -1,15 +1,15 @@
 <?php
 require_once __DIR__ . '/vendor/Helpers/Config.class.php';
 require_once __DIR__ . '/vendor/Helpers/Common.class.php';
-require_once __DIR__ . '/vendor/SimpleMail/SimpleMail.class.php';
 require_once __DIR__ . '/vendor/ZohoBooksApi/ZohoBooksApi.php';
 
 use Helpers\Config;
 use Helpers\Common;
-use SimpleMail\SimpleMail;
 
-$config = new Config;
+$config = new Config();
 $tools = new Common();
+
+$archives_dir = __DIR__ . '/archives';
 
 $config->load('./config/config.php');
 
@@ -17,17 +17,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   if (!empty($_FILES['form-attachment']['name'])) {
 
-    $file_name          = $_FILES['form-attachment']['name'];
-    $temp_name          = $_FILES['form-attachment']['tmp_name'];
-    $file_type          = $_FILES['form-attachment']['type'];
-    $base               = basename($file_name);
-    $extension          = substr($base, strlen($base) - 4, strlen($base));
-    $allowed_extensions = array('.xml');
+    $file_name = $_FILES['form-attachment']['name'];
+    $temp_name = $_FILES['form-attachment']['tmp_name'];
+    $file_type = $_FILES['form-attachment']['type'];
+    $base = basename($file_name);
+    $extension = substr($base, strlen($base) - 4, strlen($base));
 
-    if (in_array($extension, $allowed_extensions)) {
+    $allowed_xml_extensions = array('.xml');
+    $allowed_attachment_extensions = array('.xls', 'xlsx', 'pdf');
+
+    if (in_array($extension, $allowed_xml_extensions)) {
+      $xml_file_path = $archives_dir . '/' . (string) time(
+        ) . '-' . $_FILES['form-attachment']['name'];
+      if (move_uploaded_file(
+        $_FILES['form-attachment']['tmp_name'],
+        $xml_file_path
+      )) {
+        $tools->logger(
+          'XML file has been uploaded and renamed to',
+          $xml_file_path
+        );
+      }
+      else {
+        $tools->logger(
+          'Error during file uploading',
+          $file_name,
+          'error'
+        );
+      }
 
       // Parse XML.
-      $xml_data   = simplexml_load_file($temp_name);
+      $xml_data = simplexml_load_file($xml_file_path);
+
       $contact_id = (string) $xml_data->Job->Client->contactID;
 
       if ($contact_id == '') {
@@ -41,7 +62,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $invoice_attachment = '';
       if ($xml_data->Job->Production->WorkStatement) {
         $invoice_attachment = (string) $xml_data->Job->Production->WorkStatement;
+        $invoice_attachment = basename($invoice_attachment);
         if (!empty($_FILES['form-xlsx']['name']) && $invoice_attachment !== '') {
+          // Check extension for attachment.
+          $attachment_file_name = $_FILES['form-xlsx']['name'];
+          $base = basename($attachment_file_name);
+          $extension = substr($base, strlen($base) - 4, strlen($base));
+          if (!in_array($extension, $allowed_attachment_extensions)) {
+            $tools->logger(
+              'Wrong extension for attachment file. Allowed',
+              $allowed_attachment_extensions,
+              'error'
+            );
+          }
           // Zoho has limit 5MB per file.
           if ($_FILES['form-xlsx']['size'] > 5242880) {
             $tools->logger(
@@ -52,19 +85,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               'error'
             );
           }
+
+          $attachment_file_path = $archives_dir . '/'
+                                  . (string) time()
+                                  . '-' . $invoice_attachment;
+
           if (move_uploaded_file(
             $_FILES['form-xlsx']['tmp_name'],
-            __DIR__ . $invoice_attachment
+            $attachment_file_path
           )) {
             $tools->logger(
               'XLSX file has been uploaded and renamed to',
-              $invoice_attachment
+              $attachment_file_path
             );
           }
           else {
             $tools->logger(
               'Error during file uploading',
-              $_FILES['form-xlsx']['name'],
+              $attachment_file_name,
               'error'
             );
           }
@@ -100,8 +138,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       // Preparing an Invoice.
       $invoice_items = array();
       foreach ($xml_data->Job->Production->InvoiceItems->Product as $key => $item) {
-        $item             = (array) $item;
-        $rate_mapping     = array(
+        $item = (array) $item;
+        $rate_mapping = array(
           'PricePerInd',
           'PricePerRender',
           'PricePerTick',
@@ -131,10 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           }
         }
 
-        $name        = trim((string) $item['ID'], '""');
+        $name = trim((string) $item['ID'], '""');
         $description = (string) $item['Description'];
-        $quantity    = (string) $current_quantity;
-        $rate        = (string) $current_rate_type;
+        $quantity = (string) $current_quantity;
+        $rate = (string) $current_rate_type;
 
         if ($name == '' || $description == '' || $quantity == '' || $rate == '') {
           $tools->logger(
@@ -184,9 +222,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $invoice = $zoho->InvoicesCreate($invoce_data);
         //$invoice['invoice_id'] = '159812000000849219'; // For testing.
 
-        $invoice_id     = $invoice['invoice_id'];
+        $invoice_id = $invoice['invoice_id'];
         $invoice_number = $invoice['invoice_number'];
-        $invoice_total  = $invoice['currency_symbol'] . $invoice['total'];
+        $invoice_total = $invoice['currency_symbol'] . $invoice['total'];
         $tools->logger(
           'Invoice has been created with ID / NUMBER',
           $invoice_id . ' / ' . $invoice_number
@@ -206,10 +244,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if ($invoice_attachment != '') {
         // Attach a file.
-        $attachment = __DIR__ . $invoice_attachment;
-        $mime_type  = mime_content_type($attachment);
-        $file_name  = basename($attachment);
-        $parameters = new CURLFile($attachment, $mime_type, $file_name);
+        $mime_type = mime_content_type($attachment_file_path);
+        $file_name = basename($invoice_attachment);
+        $parameters = new CURLFile(
+          $attachment_file_path, $mime_type, $file_name
+        );
         $tools->logger(
           'Append the attachment to the invoice',
           $invoice_number
@@ -230,24 +269,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Update "can_send_in_mail" param.
-        $parameters = array(
-          'can_send_in_mail' => TRUE,
-        );
-        try {
-          $result = $zoho->makeApiRequest(
-            'invoices/' . $invoice_id . '/attachment',
-            'PUT',
-            $parameters
-          );
-          $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
-        } catch (Exception $e) {
-          $tools->logger(
-            'Zoho Exception',
-            $zoho->lastRequest['dataRaw'],
-            'error'
-          );
-        }
-//        unlink(__DIR__ . $invoice_attachment);
+        // Seems we don't need this.
+//        $parameters = array(
+//          'can_send_in_mail' => TRUE,
+//        );
+//        try {
+//          $result = $zoho->makeApiRequest(
+//            'invoices/' . $invoice_id . '/attachment',
+//            'PUT',
+//            $parameters
+//          );
+//          $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+//        } catch (Exception $e) {
+//          $tools->logger(
+//            'Zoho Exception',
+//            $zoho->lastRequest['dataRaw'],
+//            'error'
+//          );
+//        }
       }
 
       // STEP 2: Handle Payment.
@@ -258,44 +297,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 //      $contact_id       = '159812000000572643';
 //      $invoice['total'] = '500';
 
-      $credit_notes = $zoho->CreditNotesList(
-        array('customer_id' => $contact_id, 'status' => 'open')
-      );
-
-      if (is_array($credit_notes)) {
-        if (!empty($credit_notes)) {
-          $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
-          $credit_note    = $zoho->CreditNotesGet($credit_note_id);
-          $total          = $credit_note['total'];
-
-          if ($total >= $invoice['total']) {
-            try {
-              $parameters = array(
-                'apply_creditnotes' => array(
-                  'creditnote_id' => $credit_note_id,
-                  'amount_applied' => $invoice['total'],
-                ),
-              );
-              $result     = $zoho->makeApiRequest(
-                'invoices/' . $invoice_id . '/credits',
-                'POST',
-                $parameters
-              );
-              $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
-            } catch (Exception $e) {
-              $tools->logger(
-                'Zoho Exception',
-                $zoho->lastRequest['dataRaw'],
-                'error'
-              );
-            }
-          }
-
-        }
-        else {
-          // Assume a client doesn't have any credits.
-        }
-      }
+//      $credit_notes = $zoho->CreditNotesList(
+//        array('customer_id' => $contact_id, 'status' => 'open')
+//      );
+//
+//      if (is_array($credit_notes)) {
+//        if (!empty($credit_notes)) {
+//          $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
+//          $credit_note = $zoho->CreditNotesGet($credit_note_id);
+//          $total = $credit_note['total'];
+//
+//          if ($total >= $invoice['total']) {
+//            try {
+//              $parameters = array(
+//                'apply_creditnotes' => array(
+//                  'creditnote_id' => $credit_note_id,
+//                  'amount_applied' => $invoice['total'],
+//                ),
+//              );
+//              $result = $zoho->makeApiRequest(
+//                'invoices/' . $invoice_id . '/credits',
+//                'POST',
+//                $parameters
+//              );
+//              $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+//            } catch (Exception $e) {
+//              $tools->logger(
+//                'Zoho Exception',
+//                $zoho->lastRequest['dataRaw'],
+//                'error'
+//              );
+//            }
+//          }
+//
+//        }
+//        else {
+//          // Assume a client doesn't have any credits.
+//        }
+//      }
 
 
       // STEP 3: Send Email.
@@ -303,7 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       /**
        * $invoice_id for testing/debugging.
        */
-      $invoice_id = '159812000000857049';
+//      $invoice_id = '159812000000857049';
 
       //FIXME: Is it work? Is it need?
       $parameters = array(
@@ -366,10 +405,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
       }
 
-      // STEP 4: Tidy Up
-
-
-      exit;
 
       // For some testing.
 //      $temporary_invoice = $zoho->InvoicesGet('159812000000833591');
@@ -377,39 +412,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 //      print_r($temporary_invoice);
 //      echo '</pre>';
 
-      exit;
-
-      $mail = new SimpleMail();
-
-      $mail->setTo($config->get('emails.to'));
-      $mail->setFrom($config->get('emails.from'));
-      $mail->setSender($config->get('sender.name'));
-      $mail->setSenderEmail($config->get('emails.to'));
-      $mail->setSubject($config->get('subject.prefix'));
-
-      $body = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">
-        <html>
-            <head>
-                <meta charset=\"utf-8\">
-            </head>
-            <body>
-                <p><strong>{$config->get('fields.attachment')}:</strong> {$file_name}</p>
-            </body>
-        </html>";
-
-      $mail->setHtml($body);
-      $mail->send();
-
-      $emailSent = TRUE;
     }
     else {
-      $hasError = TRUE;
+      $tools->logger(
+        'Wrong extension for XML file. Allowed',
+        $allowed_xml_extensions,
+        'error'
+      );
     }
-
-
-  }
-  else {
-    $hasError = TRUE;
   }
 }
 ?><!DOCTYPE html>
