@@ -300,6 +300,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // STEP 3: Send Email.
 
+      /**
+       * $invoice_id for testing/debugging.
+       */
+      $invoice_id = '159812000000857049';
+
+      //FIXME: Is it work? Is it need?
+      $parameters = array(
+//        'send_customer_statement' => FALSE,
+//        'send_attachment' => FALSE,
+//        'send_from_org_email_id' => FALSE,
+      );
+
+      // Find primary and secondary emails.
+      try {
+        $result = $zoho->makeApiRequest(
+          'contacts/' . $contact_id . '/contactpersons',
+          'GET'
+        );
+        $result = $result['zohoResponse'];
+        $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+        if (is_array($result) && !empty($result)) {
+          foreach ($result as $contact) {
+            // Add emails to $parameters.
+            if ($contact['is_primary_contact'] === TRUE) {
+              $parameters['to_mail_ids'][] = $contact['email'];
+            }
+            else {
+              $parameters['cc_mail_ids'][] = $contact['email'];
+            }
+          }
+          $tools->logger(
+            'Trying to send invoice to mails with params',
+            $parameters
+          );
+        }
+        else {
+          $tools->logger(
+            'No contacts found',
+            'The script can\'t send an email to the client',
+            'error'
+          );
+        }
+      } catch (Exception $e) {
+        $tools->logger(
+          'Zoho Exception',
+          $zoho->lastRequest['dataRaw'],
+          'error'
+        );
+      }
+
+      // Send email.
+      try {
+        $result = $zoho->makeApiRequest(
+          'invoices/' . $invoice_id . '/email',
+          'POST',
+          $parameters
+        );
+        $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+      } catch (Exception $e) {
+        $tools->logger(
+          'Zoho Exception',
+          $zoho->lastRequest['dataRaw'],
+          'error'
+        );
+      }
+
       // STEP 4: Tidy Up
 
 
