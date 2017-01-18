@@ -1,24 +1,17 @@
 <?php
 require_once __DIR__ . '/vendor/Helpers/Config.class.php';
+require_once __DIR__ . '/vendor/Helpers/Common.class.php';
 require_once __DIR__ . '/vendor/SimpleMail/SimpleMail.class.php';
 require_once __DIR__ . '/vendor/ZohoBooksApi/ZohoBooksApi.php';
 
 use Helpers\Config;
+use Helpers\Common;
 use SimpleMail\SimpleMail;
 
 $config = new Config;
-$config->load('./config/config.php');
+$tools = new Common();
 
-function logger($label = '', $message = '', $type = FALSE) {
-  if (is_array($message) && !empty($message)) {
-    $message = json_encode($message);
-  }
-  $style = '';
-  if ($type == 'error') {
-    $style = 'style="color: red;"';
-  }
-  echo '<div ' . $style . '><b>' . $label . ':</b> ' . $message . '</div><br />';
-}
+$config->load('./config/config.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -36,15 +29,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       // Parse XML.
       $xml_data   = simplexml_load_file($temp_name);
       $contact_id = (string) $xml_data->Job->Client->contactID;
-      // TODO: We can't use resellerID, because reseller comes from authtoken.
-      //$reseller_id = (string) $xml_data->Job->Reseller->resellerID;
 
       if ($contact_id == '') {
-        logger('Client not found in XML by contactID', $contact_id, 'error');
+        $tools->logger(
+          'Client not found in XML by contactID',
+          $contact_id,
+          'error'
+        );
       }
-//      if ($reseller_id == '') {
-//        logger('Reseller not found in XML by resellerID', $reseller_id, 'error');
-//      }
+
+      $invoice_attachment = '';
+      if ($xml_data->Job->Production->WorkStatement) {
+        $invoice_attachment = (string) $xml_data->Job->Production->WorkStatement;
+        if (!empty($_FILES['form-xlsx']['name']) && $invoice_attachment !== '') {
+          // Zoho has limit 5MB per file.
+          if ($_FILES['form-xlsx']['size'] > 5242880) {
+            $tools->logger(
+              'You can upload a maximum 5MB',
+              'The current size is ' . $tools->formatBytes(
+                $_FILES['form-xlsx']['size']
+              ),
+              'error'
+            );
+          }
+          if (move_uploaded_file(
+            $_FILES['form-xlsx']['tmp_name'],
+            __DIR__ . $invoice_attachment
+          )) {
+            $tools->logger(
+              'XLSX file has been uploaded and renamed to',
+              $invoice_attachment
+            );
+          }
+          else {
+            $tools->logger(
+              'Error during file uploading',
+              $_FILES['form-xlsx']['name'],
+              'error'
+            );
+          }
+        }
+      }
 
       $authtoken = ($_POST['form-authtoken']) ? trim(
         $_POST['form-authtoken']
@@ -55,19 +80,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config->get('zoho.organizationID')
       );
 
-      //TODO: crmResp = zoho.crm.searchRecords("Leads", "(Custom Field 1|=| test Or Custom Field 2|=| test@zohocorp.com Or Custom Field 3|=| 12345)");
-
       try {
         $contact = $zoho->ContactsGet($contact_id);
-        logger('Contact was found in Zoho with ID', $contact_id);
+        $tools->logger('Contact was found in Zoho with ID', $contact_id);
       } catch (Exception $e) {
-        logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-        logger(
+        $tools->logger(
+          'Zoho Exception',
+          $zoho->lastRequest['dataRaw'],
+          'error'
+        );
+        $tools->logger(
           'Contact not found in Zoho by contactID',
           $contact_id,
           'error'
         );
-        exit;
       }
 
       // Preparing an Invoice.
@@ -110,12 +136,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rate        = (string) $current_rate_type;
 
         if ($name == '' || $description == '' || $quantity == '' || $rate == '') {
-          logger(
+          $tools->logger(
             'Something is missing',
             '[sku,qty,price,description]',
             'error'
           );
-          exit;
         }
         $invoice_items[] = array(
           'name' => $name,
@@ -149,7 +174,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $invoce_data['notes'] = (string) $xml_data->Job->Production->Responses->CommentsToTheClient;
       }
 
-      logger('Creating invoice: Try send the data to Zoho', $invoce_data);
+      $tools->logger(
+        'Creating invoice: Try send the data to Zoho',
+        $invoce_data
+      );
 
       try {
         $invoice = $zoho->InvoicesCreate($invoce_data);
@@ -157,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $invoice_id     = $invoice['invoice_id'];
         $invoice_number = $invoice['invoice_number'];
-        logger(
+        $tools->logger(
           'Invoice has been created with ID / NUMBER',
           $invoice_id . ' / ' . $invoice_number
         );
@@ -166,66 +194,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              . '" target="_blank">Open in Zoho!</a>'
              . ' Or upload <a href="/">another</a> XML.<br />';
       } catch (Exception $e) {
-        logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-        exit;
+        $tools->logger(
+          'Zoho Exception',
+          $zoho->lastRequest['dataRaw'],
+          'error'
+        );
       }
 
-      if ($xml_data->Job->Production->WorkStatement) {
-        $invoice_attachment = (string) $xml_data->Job->Production->WorkStatement;
-        if (!empty($_FILES['form-xlsx']['name']) && $invoice_attachment !== '') {
-          if (move_uploaded_file(
-            $_FILES['form-xlsx']['tmp_name'],
-            __DIR__ . $invoice_attachment
-          )) {
-            logger(
-              'XLSX file has been uploaded and renamed to',
-              $invoice_attachment
-            );
-
-            // Attach a file.
-            $attachment = __DIR__ . $invoice_attachment;
-            $mime_type  = mime_content_type($attachment);
-            $file_name  = basename($attachment);
-            $parameters = new CURLFile($attachment, $mime_type, $file_name);
-            logger('Append the attachment to the invoice', $invoice_number);
-            try {
-              $result = $zoho->makeApiRequest(
-                'invoices/' . $invoice_id . '/attachment',
-                'POST',
-                $parameters
-              );
-              logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
-            } catch (Exception $e) {
-              logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-            }
-
-            // Update "can_send_in_mail" param.
-            $parameters = array(
-              'can_send_in_mail' => TRUE,
-            );
-            try {
-              $result = $zoho->makeApiRequest(
-                'invoices/' . $invoice_id . '/attachment',
-                'PUT',
-                $parameters
-              );
-              logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
-            } catch (Exception $e) {
-              logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-            }
-
-          }
-          else {
-            logger(
-              'Error during file uploading',
-              $_FILES['form-xlsx']['name'],
-              'error'
-            );
-            exut;
-          }
+      if ($invoice_attachment != '') {
+        // Attach a file.
+        $attachment = __DIR__ . $invoice_attachment;
+        $mime_type  = mime_content_type($attachment);
+        $file_name  = basename($attachment);
+        $parameters = new CURLFile($attachment, $mime_type, $file_name);
+        $tools->logger(
+          'Append the attachment to the invoice',
+          $invoice_number
+        );
+        try {
+          $result = $zoho->makeApiRequest(
+            'invoices/' . $invoice_id . '/attachment',
+            'POST',
+            $parameters
+          );
+          $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+        } catch (Exception $e) {
+          $tools->logger(
+            'Zoho Exception',
+            $zoho->lastRequest['dataRaw'],
+            'error'
+          );
         }
 
+        // Update "can_send_in_mail" param.
+        $parameters = array(
+          'can_send_in_mail' => TRUE,
+        );
+        try {
+          $result = $zoho->makeApiRequest(
+            'invoices/' . $invoice_id . '/attachment',
+            'PUT',
+            $parameters
+          );
+          $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+        } catch (Exception $e) {
+          $tools->logger(
+            'Zoho Exception',
+            $zoho->lastRequest['dataRaw'],
+            'error'
+          );
+        }
+        unlink(__DIR__ . $invoice_attachment);
       }
+
 
       exit;
 
