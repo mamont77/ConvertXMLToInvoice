@@ -9,11 +9,15 @@ use SimpleMail\SimpleMail;
 $config = new Config;
 $config->load('./config/config.php');
 
-function logger($label = '', $message = '') {
+function logger($label = '', $message = '', $type = FALSE) {
   if (is_array($message) && !empty($message)) {
     $message = json_encode($message);
   }
-  echo '<b>' . $label . ':</b> ' . $message . '<br />';
+  $style = '';
+  if ($type == 'error') {
+    $style = 'style="color: red;"';
+  }
+  echo '<div ' . $style . '><b>' . $label . ':</b> ' . $message . '</div><br />';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -30,16 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (in_array($extension, $allowed_extensions)) {
 
       // Parse XML.
-      $xml_data = simplexml_load_file($temp_name);
+      $xml_data   = simplexml_load_file($temp_name);
       $contact_id = (string) $xml_data->Job->Client->contactID;
       // TODO: We can't use resellerID, because reseller comes from authtoken.
       //$reseller_id = (string) $xml_data->Job->Reseller->resellerID;
 
       if ($contact_id == '') {
-        logger('Client not found in XML by contactID', $contact_id);
+        logger('Client not found in XML by contactID', $contact_id, 'error');
       }
 //      if ($reseller_id == '') {
-//        logger('Reseller not found in XML by resellerID', $reseller_id);
+//        logger('Reseller not found in XML by resellerID', $reseller_id, 'error');
 //      }
 
 
@@ -54,10 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $contact = $zoho->ContactsGet($contact_id);
         logger('Contact was found in Zoho with ID', $contact_id);
       } catch (Exception $e) {
-        logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+        logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
         logger(
           'Contact not found in Zoho by contactID',
-          $contact_id
+          $contact_id,
+          'error'
         );
         exit;
       }
@@ -96,11 +101,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           }
         }
 
+        $name        = trim((string) $item['ID'], '""');
+        $description = (string) $item['Description'];
+        $quantity    = (string) $current_quantity;
+        $rate        = (string) $current_rate_type;
+
+        if ($name == '' || $description == '' || $quantity == '' || $rate == '') {
+          logger(
+            'Something is missing',
+            '[sku,qty,price,description]',
+            'error'
+          );
+          exit;
+        }
         $invoice_items[] = array(
-          'name' => trim((string) $item['ID'], '""'),
-          'description' => (string) $item['Description'],
-          'quantity' => $current_quantity,
-          'rate' => $current_rate_type,
+          'name' => $name,
+          'description' => $description,
+          'quantity' => $quantity,
+          'rate' => $rate,
         );
       }
 
@@ -131,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       logger('Creating invoice: Try send the data to Zoho', $invoce_data);
 
       try {
-        $invoice        = $zoho->InvoicesCreate($invoce_data);
+        $invoice = $zoho->InvoicesCreate($invoce_data);
         //$invoice['invoice_id'] = '159812000000849219'; // For testing.
 
         $invoice_id     = $invoice['invoice_id'];
@@ -145,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              . '" target="_blank">Open in Zoho!</a>'
              . ' Or upload <a href="/">another</a> XML.<br />';
       } catch (Exception $e) {
-        logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+        logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
         exit;
       }
 
@@ -175,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               );
               logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
             } catch (Exception $e) {
-              logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+              logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
             }
 
             // Update "can_send_in_mail" param.
@@ -190,12 +208,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               );
               logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
             } catch (Exception $e) {
-              logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+              logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
             }
 
           }
           else {
-            logger('Error during file uploading', $_FILES['form-xlsx']['name']);
+            logger(
+              'Error during file uploading',
+              $_FILES['form-xlsx']['name'],
+              'error'
+            );
+            exut;
           }
         }
 
