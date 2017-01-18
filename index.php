@@ -29,13 +29,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (in_array($extension, $allowed_extensions)) {
 
+      // Parse XML.
       $xml_data = simplexml_load_file($temp_name);
-
       $contact_id = (string) $xml_data->Job->Client->contactID;
+      // TODO: We can't use resellerID, because reseller comes from authtoken.
+      //$reseller_id = (string) $xml_data->Job->Reseller->resellerID;
 
       if ($contact_id == '') {
         logger('Client not found in XML by contactID', $contact_id);
       }
+//      if ($reseller_id == '') {
+//        logger('Reseller not found in XML by resellerID', $reseller_id);
+//      }
+
 
       $zoho = new ZohoBooksApi(
         $config->get('zoho.authtoken'),
@@ -125,9 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       logger('Creating invoice: Try send the data to Zoho', $invoce_data);
 
       try {
-//        $invoice        = $zoho->InvoicesCreate($invoce_data);
-
-        $invoice['invoice_id'] = '159812000000849219';
+        $invoice        = $zoho->InvoicesCreate($invoce_data);
+        //$invoice['invoice_id'] = '159812000000849219'; // For testing.
 
         $invoice_id     = $invoice['invoice_id'];
         $invoice_number = $invoice['invoice_number'];
