@@ -46,9 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 //        logger('Reseller not found in XML by resellerID', $reseller_id, 'error');
 //      }
 
+      $authtoken = ($_POST['form-authtoken']) ? trim(
+        $_POST['form-authtoken']
+      ) : $config->get('zoho.authtoken');
 
       $zoho = new ZohoBooksApi(
-        $config->get('zoho.authtoken'),
+        $authtoken,
         $config->get('zoho.organizationID')
       );
 
@@ -299,6 +302,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <form action="<?php echo $_SERVER['REQUEST_URI']; ?>"
                 enctype="multipart/form-data" id="zoho-form"
                 class="form-horizontal" method="post">
+              <div class="form-group">
+                  <label for="form-authtoken"
+                         class="col-lg-2 control-label"><?php echo $config->get(
+                      'fields.authtoken'
+                    ); ?></label>
+                  <div class="col-lg-10">
+                      <input class="form-control" id="form-authtoken"
+                             name="form-authtoken" type="text"
+                             placeholder="<?php echo $config->get(
+                               'fields.authtoken'
+                             ); ?>">
+                      <p class="help-block">Only if you want to override the
+                          authtoken by your value (optional).
+                      </p>
+                  </div>
+              </div>
               <div class="form-group">
                   <label for="form-attachment"
                          class="col-lg-2 control-label"><?php echo $config->get(
