@@ -103,7 +103,7 @@ $zoho = new ZohoBooksApi($authtoken, $config->get('zoho.organizationID'));
 
 // For debuging. Must be after $zoho = new ZohoBooksApi().
 //goto step1;
-//goto step2;
+goto step2;
 //goto step3;
 
 step1:
@@ -264,9 +264,9 @@ $tools->logger('STEP 2', 'Handle Payment');
  * For testing/debugging.
  * Ruslan (Credit Note) UNUSED CREDITS USD$1,000.00
  */
-$contact_id = '159812000000849015';
-$invoice['total'] = '0.01';
-$invoice_id = '159812000000864039';
+//$contact_id = '159812000000849015';
+//$invoice['total'] = '0.01';
+//$invoice_id = '159812000000864039';
 /**
  * For testing/debugging.
  * Ruslan (Credit Note) UNUSED CREDITS ZERO
@@ -282,44 +282,66 @@ $invoice_id = '159812000000864039';
 //$invoice['total'] = '0.01';
 //$invoice_id = '159812000000864025';
 
+$invoice_was_paid = FALSE;
 $credit_notes = $zoho->CreditNotesList(array('customer_id' => $contact_id, 'status' => 'open'));
-
-if (is_array($credit_notes)) {
-  if (!empty($credit_notes)) {
-    $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
-    $credit_note = $zoho->CreditNotesGet($credit_note_id);
-    $total = $credit_note['total'];
-
-    if ($total >= $invoice['total']) {
-      // Apply credit note.
-      try {
-        $parameters = array(
-          'apply_creditnotes' => array(
-            array(
-              'creditnote_id' => $credit_note_id,
-              'amount_applied' => $invoice['total'],
-            ),
+if (is_array($credit_notes) && !empty($credit_notes)) {
+  $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
+  $credit_note = $zoho->CreditNotesGet($credit_note_id);
+  $total_credits = $credit_note['total'];
+  if ($total_credits >= $invoice['total']) {
+    // Try to pay by credit notes. Apply credit notes.
+    try {
+      $parameters = array(
+        'apply_creditnotes' => array(
+          array(
+            'creditnote_id' => $credit_note_id,
+            'amount_applied' => $invoice['total'],
           ),
-        );
-        $result = $zoho->makeApiRequest(
-          'invoices/' . $invoice_id . '/credits',
-          'POST',
-          $parameters
-        );
-        $tools->logger('Apply credits to the invoice', $zoho->lastRequest['zohoMessage']);
-      } catch (Exception $e) {
-        $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-      }
-    }
-    else {
-      // Allow pay by credit card.
-      // TODO.
+        ),
+      );
+      $result = $zoho->makeApiRequest(
+        'invoices/' . $invoice_id . '/credits',
+        'POST',
+        $parameters
+      );
+      $tools->logger('Apply credits to the invoice', $zoho->lastRequest['zohoMessage']);
+      $invoice_was_paid = TRUE;
+    } catch (Exception $e) {
+      $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
     }
   }
-  else {
-    // Assume a client doesn't have any credits.
-    $tools->logger('The client doesn\'t have any credit note. Skipped.');
-  }
+}
+
+// TODO.
+if ($invoice_was_paid === FALSE) {
+  // Try to pay by Credit Card.
+//  $customer_payments = $zoho->CustomerPaymentsList();
+//  echo '<pre>';
+//  print_r($customer_payments);
+//  echo '</pre>';
+  /*
+   *  [cards] => Array
+        (
+            [0] => Array
+                (
+                    [card_id] => 159812000000854155
+                    [gateway] => stripe
+                    [last_four_digits] => 6107
+                    [status] => active
+                    [is_expired] =>
+                    [last_modified_time] => 2017-01-18T09:02:32-0500
+                    [created_time] => 2017-01-18T09:02:32-0500
+                    [created_by_id] => 159812000000041001
+                    [created_by_name] => Michael Sheasby
+                    [is_recurring_invoice_exists] =>
+                )
+
+        )
+   */
+}
+
+if ($invoice_was_paid === FALSE) {
+  $tools->logger('The client doesn\'t have any credit note or credit card or unsuccessful. Skipped.');
 }
 
 step3:
@@ -329,12 +351,12 @@ $tools->logger('STEP 3', 'Send Email');
 /**
  * $invoice_id for testing/debugging.
  */
-//$invoice_id = '159812000000857049';
+//$invoice_id = '159812000000867017';
 //FIXME: Is it work? Is it need in $parameters?
 $parameters = array(
-//  'send_customer_statement' => FALSE,
-//  'send_attachment' => FALSE,
-//  'send_from_org_email_id' => FALSE,
+  'send_customer_statement' => TRUE,
+  'send_attachment' => TRUE,
+  'send_from_org_email_id' => TRUE,
 );
 
 // Find primary and secondary emails.
@@ -355,7 +377,6 @@ try {
         $parameters['cc_mail_ids'][] = $contact['email'];
       }
     }
-    $tools->logger('Trying to send invoice to mails with params', $parameters);
   }
   else {
     $tools->logger('No contacts found', 'The script can\'t send an email to the client', 'error');
@@ -365,6 +386,7 @@ try {
 }
 
 // Sending an email.
+$tools->logger('Trying to send invoice to mails with params', $parameters);
 try {
   $result = $zoho->makeApiRequest(
     'invoices/' . $invoice_id . '/email',
@@ -378,4 +400,3 @@ try {
 }
 
 $tools->logger('Total Result', 'FIHISHED');
-
