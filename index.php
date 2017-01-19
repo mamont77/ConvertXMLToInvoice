@@ -91,7 +91,6 @@ if (isset($_FILES['form-attachment']) && !empty($_FILES['form-attachment']['name
   }
 }
 
-
 $contact_id = (string) $xml_data->Job->Client->contactID;
 if ($contact_id == '') {
   $tools->logger('Client not found in XML by contactID', $contact_id, 'error');
@@ -99,9 +98,18 @@ if ($contact_id == '') {
 
 $authtoken = ($_POST['form-authtoken']) ? trim($_POST['form-authtoken']) : $config->get('zoho.authtoken');
 
+// Define $zoho object.
 $zoho = new ZohoBooksApi($authtoken, $config->get('zoho.organizationID'));
 
+// For debuging. Must be after $zoho = new ZohoBooksApi().
+//goto step1;
+//goto step2;
+//goto step3;
+
+step1:
 // STEP 1: ConvertXMLToInvoice.
+$tools->logger('STEP 1', 'ConvertXMLToInvoice');
+
 try {
   $contact = $zoho->ContactsGet($contact_id);
   $tools->logger('Contact was found in Zoho with ID', $contact_id);
@@ -222,8 +230,15 @@ if ($attachment_file_path != '') {
   }
 
   // Update "can_send_in_mail" param.
-  // Seems we don't need this. Commmented for now.
+  // You don't have permission to perform this operation.
+  // Please contact your Administrator.
+  // Commented for now.
+  /**
+   * For testing/debugging.
+   */
+  // $invoice_id = '159812000000866001';
   /*
+  $tools->logger('Try to set "can_send_in_mail" = TRUE for attachment');
   $parameters = array(
     'can_send_in_mail' => TRUE,
   );
@@ -235,53 +250,82 @@ if ($attachment_file_path != '') {
     );
     $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
   } catch (Exception $e) {
-    $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
+    $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
   }
   */
 
 }
 
+step2:
 // STEP 2: Handle Payment.
+$tools->logger('STEP 2', 'Handle Payment');
+
 /**
  * For testing/debugging.
+ * Ruslan (Credit Note) UNUSED CREDITS USD$1,000.00
  */
-//$contact_id = '159812000000572643';
-//$invoice['total'] = '500';
-//
-//$credit_notes = $zoho->CreditNotesList(array('customer_id' => $contact_id, 'status' => 'open'));
-//
-//if (is_array($credit_notes)) {
-//  if (!empty($credit_notes)) {
-//    $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
-//    $credit_note = $zoho->CreditNotesGet($credit_note_id);
-//    $total = $credit_note['total'];
-//
-//    if ($total >= $invoice['total']) {
-//      try {
-//        $parameters = array(
-//          'apply_creditnotes' => array(
-//            'creditnote_id' => $credit_note_id,
-//            'amount_applied' => $invoice['total'],
-//          ),
-//        );
-//        $result = $zoho->makeApiRequest(
-//          'invoices/' . $invoice_id . '/credits',
-//          'POST',
-//          $parameters
-//        );
-//        $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
-//      } catch (Exception $e) {
-//        $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-//      }
-//    }
-//
-//  }
-//  else {
-//    // Assume a client doesn't have any credits.
-//  }
-//}
+$contact_id = '159812000000849015';
+$invoice['total'] = '0.01';
+$invoice_id = '159812000000864039';
+/**
+ * For testing/debugging.
+ * Ruslan (Credit Note) UNUSED CREDITS ZERO
+ */
+//$contact_id = '159812000000854121';
+//$invoice['total'] = '0.01';
+//$invoice_id = '159812000000867017';
+/**
+ * For testing/debugging.
+ * Ruslan (no payment method)
+ */
+//$contact_id = '159812000000854133';
+//$invoice['total'] = '0.01';
+//$invoice_id = '159812000000864025';
 
+$credit_notes = $zoho->CreditNotesList(array('customer_id' => $contact_id, 'status' => 'open'));
+
+if (is_array($credit_notes)) {
+  if (!empty($credit_notes)) {
+    $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
+    $credit_note = $zoho->CreditNotesGet($credit_note_id);
+    $total = $credit_note['total'];
+
+    if ($total >= $invoice['total']) {
+      // Apply credit note.
+      try {
+        $parameters = array(
+          'apply_creditnotes' => array(
+            array(
+              'creditnote_id' => $credit_note_id,
+              'amount_applied' => $invoice['total'],
+            ),
+          ),
+        );
+        $result = $zoho->makeApiRequest(
+          'invoices/' . $invoice_id . '/credits',
+          'POST',
+          $parameters
+        );
+        $tools->logger('Apply credits to the invoice', $zoho->lastRequest['zohoMessage']);
+      } catch (Exception $e) {
+        $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
+      }
+    }
+    else {
+      // Allow pay by credit card.
+      // TODO.
+    }
+  }
+  else {
+    // Assume a client doesn't have any credits.
+    $tools->logger('The client doesn\'t have any credit note. Skipped.');
+  }
+}
+
+step3:
 // STEP 3: Send Email.
+$tools->logger('STEP 3', 'Send Email');
+
 /**
  * $invoice_id for testing/debugging.
  */
@@ -300,7 +344,7 @@ try {
     'GET'
   );
   $result = $result['zohoResponse'];
-  $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+  $tools->logger('Get person\'s contact info', $zoho->lastRequest['zohoMessage']);
   if (is_array($result) && !empty($result)) {
     foreach ($result as $contact) {
       // Add emails to $parameters.
