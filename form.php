@@ -33,8 +33,7 @@ $config->load('./config/config.php');
                 <div class="col-lg-10">
                     <input class="form-control" id="form-authtoken" name="form-authtoken" type="text"
                            placeholder="<?php echo $config->get('form_fields.authtoken'); ?>">
-                    <p class="help-block">Only if you want to override the authtoken by your value (optional).
-                    </p>
+                    <p class="help-block">Only if you want to override the authtoken by your value (optional).</p>
                 </div>
             </div>
             <div class="form-group">
@@ -53,8 +52,7 @@ $config->load('./config/config.php');
                     <input class="form-control" id="form-attachment" name="form-attachment" type="file"
                            placeholder="<?php echo $config->get('form_fields.attachment'); ?>">
                     <p class="help-block">This script can't get attachment file from XML, so for testing we should
-                        upload the file, too (optional). Also, helpful if you want to override a file from XML.
-                    </p>
+                        upload the file, too (optional). Also, helpful if you want to override a file from XML.</p>
                 </div>
             </div>
             <div class="form-group">
