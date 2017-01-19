@@ -144,14 +144,14 @@ foreach ($xml_data->Job->Production->InvoiceItems->Product as $key => $item) {
   foreach ($rate_mapping as $rate) {
     if (isset($item[$rate])) {
       $current_rate_type = $item[$rate];
-      continue;
+      break;
     }
   }
   $current_quantity = 0;
   foreach ($quantity_mapping as $quantity) {
     if (isset($item[$quantity])) {
       $current_quantity = $item[$quantity];
-      continue;
+      break;
     }
   }
 
@@ -274,6 +274,11 @@ $tools->logger('STEP 2', 'Handle Payment');
 //$contact_id = '159812000000854121';
 //$invoice['total'] = '0.01';
 //$invoice_id = '159812000000867017';
+//$contact['cards'][0] = array(
+//  'card_id' => '159812000000854155',
+//  'status' => 'active',
+//  'is_expired' => FALSE,
+//);
 /**
  * For testing/debugging.
  * Ruslan (no payment method)
@@ -312,32 +317,32 @@ if (is_array($credit_notes) && !empty($credit_notes)) {
   }
 }
 
-// TODO.
-if ($invoice_was_paid === FALSE) {
-  // Try to pay by Credit Card.
-//  $customer_payments = $zoho->CustomerPaymentsList();
-//  echo '<pre>';
-//  print_r($customer_payments);
-//  echo '</pre>';
-  /*
-   *  [cards] => Array
-        (
-            [0] => Array
-                (
-                    [card_id] => 159812000000854155
-                    [gateway] => stripe
-                    [last_four_digits] => 6107
-                    [status] => active
-                    [is_expired] =>
-                    [last_modified_time] => 2017-01-18T09:02:32-0500
-                    [created_time] => 2017-01-18T09:02:32-0500
-                    [created_by_id] => 159812000000041001
-                    [created_by_name] => Michael Sheasby
-                    [is_recurring_invoice_exists] =>
-                )
-
-        )
-   */
+// Try to pay by credit card.
+$card_id = NULL;
+if ($invoice_was_paid === FALSE && is_array($contact['cards']) && !empty($contact['cards'])) {
+  foreach ($contact['cards'] as $card) {
+    if ($card['status'] == 'active' && $card['is_expired'] === FALSE) {
+      $card_id = $card['card_id'];
+      break;
+    }
+  }
+  $parameters = array(
+    'card_id' => $card_id,
+    'payment_amount' => '',
+  );
+  try {
+    $result = $zoho->makeApiRequest(
+      'invoices/' . $invoice_id . '/forcepay',
+      'POST',
+      $parameters
+    );
+    echo '<pre>';
+    print_r($result);
+    echo '</pre>';
+  } catch (Exception $e) {
+    //Zoho Exception: {"code":9096,"message":"Force payment can be made only for the invoices generated from recurring invoices."}
+    $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
+  }
 }
 
 if ($invoice_was_paid === FALSE) {
