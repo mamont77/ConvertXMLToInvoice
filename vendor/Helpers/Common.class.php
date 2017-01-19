@@ -21,7 +21,7 @@ class Common {
     if ($type == 'error') {
       $style = 'style="color: red;"';
     }
-    echo '<div ' . $style . '><b>' . $label . ':</b> ' . $message . '</div><br />';
+    echo '<div class="logger" ' . $style . '><b>' . $label . ':</b> ' . $message . '</div>';
     if ($type == 'error') {
       exit;
     }
@@ -37,8 +37,8 @@ class Common {
     $units = array('B', 'KB', 'MB', 'GB', 'TB');
 
     $bytes = max($bytes, 0);
-    $pow   = floor(($bytes ? log($bytes) : 0) / log(1024));
-    $pow   = min($pow, count($units) - 1);
+    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+    $pow = min($pow, count($units) - 1);
     $bytes /= pow(1024, $pow);
 
     return round($bytes, $precision) . ' ' . $units[$pow];
