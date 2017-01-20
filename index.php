@@ -103,7 +103,7 @@ $zoho = new ZohoBooksApi($authtoken, $config->get('zoho.organizationID'));
 
 // For debuging. Must be after $zoho = new ZohoBooksApi().
 //goto step1;
-goto step2;
+//goto step2;
 //goto step3;
 
 step1:
@@ -341,7 +341,7 @@ if ($invoice_was_paid === FALSE && is_array($contact['cards']) && !empty($contac
     echo '</pre>';
   } catch (Exception $e) {
     //Zoho Exception: {"code":9096,"message":"Force payment can be made only for the invoices generated from recurring invoices."}
-    $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
+    $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
   }
 }
 

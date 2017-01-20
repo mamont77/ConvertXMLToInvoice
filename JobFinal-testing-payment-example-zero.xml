@@ -20,6 +20,10 @@
 					<PricePerTick>.01</PricePerTick>
 				</Product>
 			</InvoiceItems>
+			<Responses>
+				<!-- Comments come from production -->
+				<CommentsToTheClient>Please check spelling of student name on memory mate 6</CommentsToTheClient>
+			</Responses>
 		</Production>
 	</Job>
 	<Meta>
