@@ -24,14 +24,14 @@ $config->load('./config/config.php');
 
 <div class="container">
     <div class="row">
-        <form action="/index.php"
+        <form action="/index.php?&appAuthToken=<?php echo $config->get('app_authtoken'); ?>"
               enctype="multipart/form-data" id="zoho-form"
               class="form-horizontal" method="post">
             <div class="form-group">
                 <label for="form-authtoken"
                        class="col-lg-2 control-label"><?php echo $config->get('form_fields.authtoken'); ?></label>
                 <div class="col-lg-10">
-                    <input class="form-control" id="form-authtoken" name="form-authtoken" type="text"
+                    <input class="form-control" id="form-authtoken" name="zoho-authtoken" type="text"
                            placeholder="<?php echo $config->get('form_fields.authtoken'); ?>">
                     <p class="help-block">Only if you want to override the authtoken by your value (optional).</p>
                 </div>
@@ -40,7 +40,7 @@ $config->load('./config/config.php');
                 <label for="form-xml"
                        class="col-lg-2 control-label"><?php echo $config->get('form_fields.xml'); ?></label>
                 <div class="col-lg-10">
-                    <input class="form-control" id="form-xml" name="form-xml"
+                    <input class="form-control" id="form-xml" name="xml"
                            type="file" placeholder="<?php echo $config->get('form_fields.xml'); ?>
                     " required>
                 </div>
@@ -49,7 +49,7 @@ $config->load('./config/config.php');
                 <label for="form-attachment"
                        class="col-lg-2 control-label"><?php echo $config->get('form_fields.attachment'); ?></label>
                 <div class="col-lg-10">
-                    <input class="form-control" id="form-attachment" name="form-attachment" type="file"
+                    <input class="form-control" id="form-attachment" name="attachment" type="file"
                            placeholder="<?php echo $config->get('form_fields.attachment'); ?>">
                     <p class="help-block">This script can't get attachment file from XML, so for testing we should
                         upload the file, too (optional). Also, helpful if you want to override a file from XML.</p>

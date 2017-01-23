@@ -3,11 +3,6 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header('Location: /form.php');
-  exit;
-}
-
 require_once __DIR__ . '/vendor/Helpers/Config.class.php';
 require_once __DIR__ . '/vendor/Helpers/Common.class.php';
 require_once __DIR__ . '/vendor/ZohoBooksApi/ZohoBooksApi.php';
@@ -19,6 +14,16 @@ $config = new Config();
 $tools = new Common();
 
 $config->load('./config/config.php');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  header('Location: /form.php');
+  exit;
+}
+
+if ($_GET['appAuthToken'] != $config->get('app_authtoken')) {
+  echo 'app_authtoken is invalid!';
+  exit;
+}
 
 // Prepare something.
 $work_statements = __DIR__ . '/' . $config->get('paths.work_statements') . '/';
@@ -38,14 +43,14 @@ if (!file_exists($work_statements)) {
 }
 
 // Check and move XML file.
-if (isset($_FILES['form-xml']) && !empty($_FILES['form-xml']['name'])) {
-  $xml_file_name = $_FILES['form-xml']['name'];
-  $extension = pathinfo($_FILES['form-xml']['name'], PATHINFO_EXTENSION);
+if (isset($_FILES['xml']) && !empty($_FILES['xml']['name'])) {
+  $xml_file_name = $_FILES['xml']['name'];
+  $extension = pathinfo($_FILES['xml']['name'], PATHINFO_EXTENSION);
   if (!in_array($extension, $allowed_xml_extensions)) {
     $tools->logger('Wrong extension for XML file. Allowed', $allowed_xml_extensions, 'error');
   }
   $xml_file_path = $archives_dir . (string) time() . '-' . $xml_file_name;
-  if (move_uploaded_file($_FILES['form-xml']['tmp_name'], $xml_file_path)) {
+  if (move_uploaded_file($_FILES['xml']['tmp_name'], $xml_file_path)) {
     $tools->logger('XML file has been uploaded and renamed to', $xml_file_path);
   }
   else {
@@ -70,23 +75,23 @@ if ($xml_data->Job->Production->WorkStatement) {
 }
 
 // Check and move attachment file.
-// If the form contain the file,
+// If the form or CURL request contain the file,
 // we use it instead of native attachment from XML (from WorkStatements).
-if (isset($_FILES['form-attachment']) && !empty($_FILES['form-attachment']['name'])) {
-  $attachment_file_name = $_FILES['form-attachment']['name'];
-  $extension = pathinfo($_FILES['form-attachment']['name'], PATHINFO_EXTENSION);
+if (isset($_FILES['attachment']) && !empty($_FILES['attachment']['name'])) {
+  $attachment_file_name = $_FILES['attachment']['name'];
+  $extension = pathinfo($_FILES['attachment']['name'], PATHINFO_EXTENSION);
   if (!in_array($extension, $allowed_attachment_extensions)) {
     $tools->logger('Wrong extension for attachment file. Allowed', $allowed_attachment_extensions, 'error');
   }
   // Zoho has limit 5MB per file for attachments, so checking.
-  if ($_FILES['form-xlsx']['size'] > 5242880) {
+  if ($_FILES['attachment']['size'] > 5242880) {
     $tools->logger(
-      'You can upload a maximum 5MB', 'The current size is ' . $tools->formatBytes($_FILES['form-xlsx']['size']),
+      'You can upload a maximum 5MB', 'The current size is ' . $tools->formatBytes($_FILES['attachment']['size']),
       'error'
     );
   }
   $attachment_file_path = $archives_dir . (string) time() . '-' . $attachment_file_name;
-  if (move_uploaded_file($_FILES['form-attachment']['tmp_name'], $attachment_file_path)) {
+  if (move_uploaded_file($_FILES['attachment']['tmp_name'], $attachment_file_path)) {
     $tools->logger('Attachment file has been uploaded and renamed to', $attachment_file_path);
   }
   else {
@@ -94,22 +99,24 @@ if (isset($_FILES['form-attachment']) && !empty($_FILES['form-attachment']['name
   }
 }
 
+
 $contact_id = (string) $xml_data->Job->Client->contactID;
 if ($contact_id == '') {
   $tools->logger('Client not found in XML by contactID', $contact_id, 'error');
 }
 
-$authtoken = ($_POST['form-authtoken']) ? trim($_POST['form-authtoken']) : $config->get('zoho.authtoken');
+$zoho_authtoken = (isset($_POST['zoho-authtoken'])) ? trim($_POST['zoho-authtoken']) : $config->get('zoho.authtoken');
 
 // Define $zoho object.
-$zoho = new ZohoBooksApi($authtoken, $config->get('zoho.organizationID'));
+$zoho = new ZohoBooksApi($zoho_authtoken, $config->get('zoho.organizationID'));
 
 // For debuging. Must be after $zoho = new ZohoBooksApi().
-//goto step1;
-//goto step2;
-//goto step3;
+//goto step_convert;
+//goto step_charge_payment;
+//goto step_send_email;
+//goto step_finish;
 
-step1:
+step_convert:
 // STEP 1: ConvertXMLToInvoice.
 $tools->logger('STEP 1', 'ConvertXMLToInvoice');
 
@@ -240,7 +247,6 @@ if ($attachment_file_path != '') {
    * For testing/debugging.
    */
   // $invoice_id = '159812000000866001';
-  /*
   $tools->logger('Try to set "can_send_in_mail" = TRUE for attachment');
   $parameters = array(
     'can_send_in_mail' => TRUE,
@@ -255,11 +261,20 @@ if ($attachment_file_path != '') {
   } catch (Exception $e) {
     $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
   }
-  */
 
 }
 
-step2:
+$charge_payment = TRUE;
+$send_email = TRUE;
+// We can keep some steps.
+if (isset($_POST['charge_payment']) && trim($_POST['charge_payment']) == '') {
+  goto step_send_email;
+}
+if (isset($_POST['send_email']) && trim($_POST['send_email']) == '') {
+  goto step_finish;
+}
+
+step_charge_payment:
 // STEP 2: Handle Payment.
 $tools->logger('STEP 2', 'Handle Payment');
 
@@ -339,9 +354,7 @@ if ($invoice_was_paid === FALSE && is_array($contact['cards']) && !empty($contac
       'POST',
       $parameters
     );
-    echo '<pre>';
-    print_r($result);
-    echo '</pre>';
+    $tools->logger('Force pay by credit card', $zoho->lastRequest['zohoMessage']);
   } catch (Exception $e) {
     //Zoho Exception: {"code":9096,"message":"Force payment can be made only for the invoices generated from recurring invoices."}
     $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
@@ -352,7 +365,7 @@ if ($invoice_was_paid === FALSE) {
   $tools->logger('The client doesn\'t have any credit note or credit card or unsuccessful. Skipped.');
 }
 
-step3:
+step_send_email:
 // STEP 3: Send Email.
 $tools->logger('STEP 3', 'Send Email');
 
@@ -407,4 +420,5 @@ try {
     'Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
 }
 
+step_finish:
 $tools->logger('Total Result', 'FIHISHED');

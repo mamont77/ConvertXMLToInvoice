@@ -1,4 +1,4 @@
 #
 # Apache/PHP/Drupal settings:
 #
-AddHandler application/x-httpd-php56 .php
+#AddHandler application/x-httpd-php56 .php
