@@ -24,7 +24,7 @@ $config->load('./config/config.php');
 
 <div class="container">
     <div class="row">
-        <form action="/index.php?&appAuthToken=<?php echo $config->get('app_authtoken'); ?>"
+        <form action="/XML2ZohoScript.php?&appAuthToken=<?php echo $config->get('app_authtoken'); ?>"
               enctype="multipart/form-data" id="zoho-form"
               class="form-horizontal" method="post">
             <div class="form-group">
@@ -69,7 +69,7 @@ $config->load('./config/config.php');
     <div class="container">
         <ul class="bs-docs-footer-links">
             <li>
-                <a href="/contacts-list.php" target="_blank">Get ALL Contacts</a>
+                <a href="/XML2ZohoContactList.php" target="_blank">Get ALL Contacts</a>
             </li>
         </ul>
 </footer>

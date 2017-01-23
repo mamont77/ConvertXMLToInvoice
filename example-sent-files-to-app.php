@@ -1,7 +1,7 @@
 <?php
 
 /**
- * We can use request to http:/target-url/index.php?&appAuthToken=89759375937693758292.
+ * We can use request using CURL.
  *
  * Method: POST
  * Params: array()
@@ -13,7 +13,7 @@
  * Return json result.
  */
 
-$target_url = 'http://jaleatech.dev/index.php?&appAuthToken=89759375937693758292';
+$target_url = 'http://http://api.jaleatech.com//XML2ZohoScript.php?appAuthToken=89759375937693758292';
 
 // This needs to be the full path to the file you want to send.
 $xml_file_name_with_full_path = realpath('./JobFinal-testing-payment-example-zero.xml');

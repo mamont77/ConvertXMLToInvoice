@@ -16,7 +16,7 @@ $tools = new Common();
 $config->load('./config/config.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header('Location: /form.php');
+  header('Location: /XML2ZohoForm.php');
   exit;
 }
 
