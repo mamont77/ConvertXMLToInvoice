@@ -105,7 +105,9 @@ if ($contact_id == '') {
   $tools->logger('Client not found in XML by contactID', $contact_id, 'error');
 }
 
-$zoho_authtoken = (isset($_POST['zoho-authtoken'])) ? trim($_POST['zoho-authtoken']) : $config->get('zoho.authtoken');
+$zoho_authtoken = (isset($_POST['zoho-authtoken']) && !empty($_POST['zoho-authtoken']))
+  ? trim($_POST['zoho-authtoken'])
+  : $config->get('zoho.authtoken');
 
 // Define $zoho object.
 $zoho = new ZohoBooksApi($zoho_authtoken, $config->get('zoho.organizationID'));
