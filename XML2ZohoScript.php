@@ -46,6 +46,7 @@ if (!file_exists($work_statements)) {
 if (isset($_FILES['xml']) && !empty($_FILES['xml']['name'])) {
   $xml_file_name = $_FILES['xml']['name'];
   $extension = pathinfo($_FILES['xml']['name'], PATHINFO_EXTENSION);
+  $extension = strtolower($extension);
   if (!in_array($extension, $allowed_xml_extensions)) {
     $tools->logger('Wrong extension for XML file. Allowed', $allowed_xml_extensions, 'error');
   }
@@ -80,6 +81,7 @@ if ($xml_data->Job->Production->WorkStatement) {
 if (isset($_FILES['attachment']) && !empty($_FILES['attachment']['name'])) {
   $attachment_file_name = $_FILES['attachment']['name'];
   $extension = pathinfo($_FILES['attachment']['name'], PATHINFO_EXTENSION);
+  $extension = strtolower($extension);
   if (!in_array($extension, $allowed_attachment_extensions)) {
     $tools->logger('Wrong extension for attachment file. Allowed', $allowed_attachment_extensions, 'error');
   }
@@ -227,7 +229,7 @@ try {
 
 if ($attachment_file_path != '') {
   // Attach a file.
-  $mime_type = mime_content_type($attachment_file_path);
+  $mime_type = $tools->mime_content_type($attachment_file_path);
   $parameters = new CURLFile($attachment_file_path, $mime_type, $attachment_file_name);
   $tools->logger('Append the attachment to the invoice', $invoice_number);
   try {
