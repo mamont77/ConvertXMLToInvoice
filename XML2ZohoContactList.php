@@ -7,6 +7,11 @@ use Helpers\Config;
 $config = new Config;
 $config->load('./config/config.php');
 
+if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
+  print json_encode(array('error' => 'app_authtoken is invalid!'));
+  exit;
+}
+
 $zoho = new ZohoBooksApi(
   $config->get('zoho.authtoken'),
   $config->get('zoho.organizationID')

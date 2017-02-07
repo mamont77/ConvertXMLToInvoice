@@ -15,13 +15,13 @@ $tools = new Common();
 
 $config->load('./config/config.php');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header('Location: /XML2ZohoForm.php');
+if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
+  print json_encode(array('error' => 'app_authtoken is invalid!'));
   exit;
 }
 
-if ($_GET['appAuthToken'] != $config->get('app_authtoken')) {
-  echo 'app_authtoken is invalid!';
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  header('Location: /XML2ZohoForm.php?appAuthToken=' . $config->get('app_authtoken'));
   exit;
 }
 
