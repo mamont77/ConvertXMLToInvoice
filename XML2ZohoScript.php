@@ -222,7 +222,7 @@ try {
   echo '<a href="https://books.zoho.com/app#/invoices/'
        . $invoice_id
        . '" target="_blank">Open in Zoho!</a>'
-       . ' Or upload <a href="/form.php">another</a> XML.<br />';
+       . ' Or upload <a href="/XML2ZohoForm.php">another</a> XML.<br />';
 } catch (Exception $e) {
   $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
 }
