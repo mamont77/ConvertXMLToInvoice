@@ -21,12 +21,11 @@ if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header('Location: /XML2ZohoForm.php?appAuthToken=' . $config->get('app_authtoken'));
+  header('Location: /XML2ZohoForm.php');
   exit;
 }
 
 // Prepare something.
-$work_statements = __DIR__ . '/' . $config->get('paths.work_statements') . '/';
 $archives_dir = __DIR__ . '/' . $config->get('paths.archives') . '/';
 $allowed_xml_extensions = $config->get('allowed_extensions.xml');
 $allowed_attachment_extensions = $config->get('allowed_extensions.attachment');
@@ -37,9 +36,6 @@ $attachment_file_path = '';
 
 if (!file_exists($archives_dir)) {
   mkdir($archives_dir, 0777, TRUE);
-}
-if (!file_exists($work_statements)) {
-  mkdir($work_statements, 0777, TRUE);
 }
 
 // Check and move XML file.
@@ -56,22 +52,6 @@ if (isset($_FILES['xml']) && !empty($_FILES['xml']['name'])) {
   }
   else {
     $tools->logger('Error during XML file uploading', $xml_file_name, 'error');
-  }
-}
-
-// Parse basic info from XML.
-$xml_data = simplexml_load_file($xml_file_path);
-
-// If the XML has an attachment's info we use it.
-if ($xml_data->Job->Production->WorkStatement) {
-  $attachment_file_path = (string) $xml_data->Job->Production->WorkStatement;
-  $attachment_file_name = basename($attachment_file_path);
-  if (file_exists(__DIR__ . $attachment_file_path)) {
-    $new_attachment_file_path = $archives_dir . (string) time() . '-' . $attachment_file_name;
-    rename(__DIR__ . $attachment_file_path, $new_attachment_file_path);
-    $attachment_file_path = $new_attachment_file_path;
-    unset($new_attachment_file_path);
-    $tools->logger('Attachment file has been moved to', $attachment_file_path);
   }
 }
 
@@ -101,8 +81,10 @@ if (isset($_FILES['attachment']) && !empty($_FILES['attachment']['name'])) {
   }
 }
 
+// Parse basic info from XML.
+$xml_data = simplexml_load_file($xml_file_path);
 
-$contact_id = (string) $xml_data->Job->Client->contactID;
+$contact_id = (string) $xml_data->WorkSummary->Invoicing->Client->ZohoContactID;
 if ($contact_id == '') {
   $tools->logger('Client not found in XML by contactID', $contact_id, 'error');
 }
@@ -133,49 +115,20 @@ try {
 }
 
 // Preparing an Invoice.
-if (!isset($xml_data->Job->Production->InvoiceItems->Product)) {
+if (!isset($xml_data->WorkSummary->Invoicing->LineItems)) {
   $tools->logger('Products not found in XML', '', 'error');
 }
 $invoice_items = array();
-foreach ($xml_data->Job->Production->InvoiceItems->Product as $key => $item) {
+foreach ($xml_data->WorkSummary->Invoicing->LineItems->Product as $key => $item) {
   $item = (array) $item;
-  $rate_mapping = array(
-    'PricePerInd',
-    'PricePerRender',
-    'PricePerTick',
-    'PricePerSheet',
-    'PricePerPose',
-  );
-  $quantity_mapping = array(
-    'RenderCount',
-    'IndCount',
-    'TickCount',
-    'SheetCount',
-    'PoseCount',
-  );
-
-  $current_rate_type = '';
-  foreach ($rate_mapping as $rate) {
-    if (isset($item[$rate])) {
-      $current_rate_type = $item[$rate];
-      break;
-    }
-  }
-  $current_quantity = 0;
-  foreach ($quantity_mapping as $quantity) {
-    if (isset($item[$quantity])) {
-      $current_quantity = $item[$quantity];
-      break;
-    }
-  }
 
   $name = trim((string) $item['ID'], '""');
   $description = (string) $item['Description'];
-  $quantity = (string) $current_quantity;
-  $rate = (string) $current_rate_type;
+  $quantity = (string) $item['Qty'];
+  $rate = (string) $item['UnitPrice'];
 
   if ($name == '' || $description == '' || $quantity == '' || $rate == '') {
-    $tools->logger('Something is missing in XML. Check', '[sku, qty, price, description]', 'error');
+    $tools->logger('Something is missing in XML. Check', '[ID, Description, Qty, UnitPrice]', 'error');
   }
   $invoice_items[] = array(
     'name' => $name,
@@ -205,8 +158,8 @@ $invoce_data = array(
   'line_items' => $invoice_items,
 );
 
-if ($xml_data->Job->Production->Responses->CommentsToTheClient) {
-  $invoce_data['notes'] = (string) $xml_data->Job->Production->Responses->CommentsToTheClient;
+if ($xml_data->WorkSummary->Invoicing->NoteToClient) {
+  $invoce_data['notes'] = (string) $xml_data->WorkSummary->Invoicing->NoteToClient;
 }
 
 $tools->logger('Creating invoice: Try send the data to Zoho', $invoce_data);
@@ -268,14 +221,12 @@ if ($attachment_file_path != '') {
 
 }
 
-$charge_payment = TRUE;
-$send_email = TRUE;
-// We can keep some steps.
-if (isset($_POST['charge_payment']) && trim($_POST['charge_payment']) == '') {
-  goto step_send_email;
+// We can skip charge_payment.
+if (isset($_POST['charge_payment']) && trim($_POST['charge_payment']) == '1') {
+  goto step_charge_payment;
 }
-if (isset($_POST['send_email']) && trim($_POST['send_email']) == '') {
-  goto step_finish;
+else {
+  goto step_send_email;
 }
 
 step_charge_payment:
@@ -370,6 +321,15 @@ if ($invoice_was_paid === FALSE) {
 }
 
 step_send_email:
+
+// We can skip send_email.
+if (isset($_POST['send_email']) && trim($_POST['send_email']) == '1') {
+  // Nothing to do.
+}
+else {
+  goto step_finish;
+}
+
 // STEP 3: Send Email.
 $tools->logger('STEP 3', 'Send Email');
 

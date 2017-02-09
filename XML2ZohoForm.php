@@ -7,11 +7,6 @@ $config = new Config();
 
 $config->load('./config/config.php');
 
-if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
-  print json_encode(array('error' => 'app_authtoken is invalid!'));
-  exit;
-}
-
 ?><!DOCTYPE html>
 <html>
 <head>
@@ -61,6 +56,20 @@ if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
                 </div>
             </div>
             <div class="form-group">
+                <label for="form-charge-payment"
+                       class="col-lg-2 control-label"><?php echo $config->get('form_fields.charge_payment'); ?></label>
+                <div class="col-lg-10">
+                    <input class="" id="form-charge-payment" name="charge_payment" type="checkbox" value="1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="form-send-email"
+                       class="col-lg-2 control-label"><?php echo $config->get('form_fields.send_email'); ?></label>
+                <div class="col-lg-10">
+                    <input class="" id="form-send-email" name="send_email" type="checkbox" value="1" checked>
+                </div>
+            </div>
+            <div class="form-group">
                 <div class="col-lg-offset-2 col-lg-10">
                     <button type="submit"
                             class="btn btn-default"><?php echo $config->get('form_fields.btn-send'); ?></button>
@@ -74,7 +83,8 @@ if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
     <div class="container">
         <ul class="bs-docs-footer-links">
             <li>
-                <a href="/XML2ZohoContactList.php?appAuthToken=<?php print $config->get('app_authtoken'); ?>" target="_blank">Get ALL Contacts</a>
+                <a href="/XML2ZohoContactList.php?appAuthToken=<?php print $config->get('app_authtoken'); ?>"
+                   target="_blank">Get ALL Contacts</a>
             </li>
         </ul>
 </footer>

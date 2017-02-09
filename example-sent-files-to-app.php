@@ -7,16 +7,17 @@
  * Params: array()
  *   xml file required.
  *   attachment file optional.
- *   charge_payment optional default TRUE.
- *   send_email optional default TRUE.
+ *   charge_payment optional default 0.
+ *   send_email optional default 0.
  *
  * Return json result.
  */
 
 $target_url = 'http://api.jaleatech.com/XML2ZohoScript.php?appAuthToken=89759375937693758292';
+//$target_url = 'http://jaleatech.dev/XML2ZohoScript.php?appAuthToken=89759375937693758292';
 
 // This needs to be the full path to the file you want to send.
-$xml_file_name_with_full_path = realpath('./JobFinal-testing-payment-example-zero.xml');
+$xml_file_name_with_full_path = realpath('./SAMPLE_XML.XML');
 $attachment_file_name_with_full_path = realpath('./test.xlsx');
 
 // If php 5.6+.
@@ -32,8 +33,8 @@ else {
 $parameters = array(
   'xml' => $xml_file,
   'attachment' => $attachment_file,
-  'charge_payment' => TRUE,
-  'send_email' => TRUE,
+  'charge_payment' => 0,
+  'send_email' => 1,
 );
 
 $ch = curl_init();
