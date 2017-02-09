@@ -33,6 +33,7 @@ $xml_file_name = '';
 $xml_file_path = '';
 $attachment_file_name = '';
 $attachment_file_path = '';
+$current_time = (string) time();
 
 if (!file_exists($archives_dir)) {
   mkdir($archives_dir, 0777, TRUE);
@@ -46,7 +47,7 @@ if (isset($_FILES['xml']) && !empty($_FILES['xml']['name'])) {
   if (!in_array($extension, $allowed_xml_extensions)) {
     $tools->logger('Wrong extension for XML file. Allowed', $allowed_xml_extensions, 'error');
   }
-  $xml_file_path = $archives_dir . (string) time() . '-' . $xml_file_name;
+  $xml_file_path = $archives_dir . $current_time . '-' . $xml_file_name;
   if (move_uploaded_file($_FILES['xml']['tmp_name'], $xml_file_path)) {
     $tools->logger('XML file has been uploaded and renamed to', $xml_file_path);
   }
@@ -72,7 +73,7 @@ if (isset($_FILES['attachment']) && !empty($_FILES['attachment']['name'])) {
       'error'
     );
   }
-  $attachment_file_path = $archives_dir . (string) time() . '-' . $attachment_file_name;
+  $attachment_file_path = $archives_dir . $current_time . '-' . $attachment_file_name;
   if (move_uploaded_file($_FILES['attachment']['tmp_name'], $attachment_file_path)) {
     $tools->logger('Attachment file has been uploaded and renamed to', $attachment_file_path);
   }
