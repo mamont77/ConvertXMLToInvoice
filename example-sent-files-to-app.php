@@ -9,8 +9,6 @@
  *   attachment file optional.
  *   charge_payment optional default 0.
  *   send_email optional default 0.
- *
- * Return json result.
  */
 
 $target_url = 'http://api.jaleatech.com/XML2ZohoScript.php?appAuthToken=89759375937693758292';
