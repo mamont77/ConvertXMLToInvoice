@@ -19,4 +19,9 @@ $zoho = new ZohoBooksApi(
 
 $contacts = $zoho->ContactsListAll();
 
-print json_encode($contacts);
+$output = array(
+  'contacts' => $contacts,
+  'count' => count($contacts),
+);
+
+print json_encode($output);

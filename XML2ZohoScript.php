@@ -116,6 +116,27 @@ try {
 }
 
 // Preparing an Invoice.
+$invoice_data = array();
+
+if ($xml_data->WorkSummary->Invoicing->Client->Salesperson) {
+  $salesperson = (string) $xml_data->WorkSummary->Invoicing->Client->Salesperson;
+  $result = $zoho->ContactsList(array('contact_name' => $salesperson));
+  if (empty($result)) {
+    $tools->logger('Salesperson doesn\'t exist', '', 'error');
+  }
+  elseif (count($result) > 1) {
+    $tools->logger('Result', $result);
+    $tools->logger('A few people found satisfying the specified criteria', '', 'error');
+  }
+  else {
+    $tools->logger('Salesperson has been found. Apply Salesperson to the invoice ',
+      'Company: ' . $result[0]['company_name']
+      . ' / First Name: ' . $result[0]['first_name']
+      . ' / Last Name: ' . $result[0]['last_name']);
+    $invoice_data['salesperson_name'] = $salesperson;
+  }
+}
+
 if (!isset($xml_data->WorkSummary->Invoicing->LineItems)) {
   $tools->logger('Products not found in XML', '', 'error');
 }
@@ -139,7 +160,7 @@ foreach ($xml_data->WorkSummary->Invoicing->LineItems->Product as $key => $item)
   );
 }
 
-$invoce_data = array(
+$invoice_data += array(
   'customer_id' => $contact_id,
   // Fixme: Out of scope.
   // Allowed Values:
@@ -160,13 +181,13 @@ $invoce_data = array(
 );
 
 if ($xml_data->WorkSummary->Invoicing->NoteToClient) {
-  $invoce_data['notes'] = (string) $xml_data->WorkSummary->Invoicing->NoteToClient;
+  $invoice_data['notes'] = (string) $xml_data->WorkSummary->Invoicing->NoteToClient;
 }
 
-$tools->logger('Creating invoice: Try send the data to Zoho', $invoce_data);
+$tools->logger('Creating invoice: Try send the data to Zoho', $invoice_data);
 
 try {
-  $invoice = $zoho->InvoicesCreate($invoce_data);
+  $invoice = $zoho->InvoicesCreate($invoice_data);
   // $invoice['invoice_id'] = '159812000000849219'; // For testing.
   $invoice_id = $invoice['invoice_id'];
   $invoice_number = $invoice['invoice_number'];
@@ -191,7 +212,7 @@ if ($attachment_file_path != '') {
       'invoices/' . $invoice_id . '/attachment',
       'POST',
       $parameters);
-    $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
+    $tools->logger('Zoho Result', $zoho->lastRequest['dataRaw']);
   } catch (Exception $e) {
     $tools->logger(
       'Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
@@ -222,12 +243,13 @@ if ($attachment_file_path != '') {
 
 }
 
-// We can skip charge_payment.
+// We can skip charge_payment. In this case we shouldn't sent an email.
 if (isset($_POST['charge_payment']) && trim($_POST['charge_payment']) == '1') {
   goto step_charge_payment;
 }
 else {
-  goto step_send_email;
+  $tools->logger('Charge payment', 'Skipped');
+  goto step_finish;
 }
 
 step_charge_payment:
@@ -311,6 +333,7 @@ if ($invoice_was_paid === FALSE && is_array($contact['cards']) && !empty($contac
       $parameters
     );
     $tools->logger('Force pay by credit card', $zoho->lastRequest['zohoMessage']);
+    $invoice_was_paid = TRUE;
   } catch (Exception $e) {
     //Zoho Exception: {"code":9096,"message":"Force payment can be made only for the invoices generated from recurring invoices."}
     $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
@@ -324,10 +347,11 @@ if ($invoice_was_paid === FALSE) {
 step_send_email:
 
 // We can skip send_email.
-if (isset($_POST['send_email']) && trim($_POST['send_email']) == '1') {
+if (isset($_POST['send_email']) && trim($_POST['send_email']) == '1' && $invoice_was_paid === TRUE) {
   // Nothing to do.
 }
 else {
+  $tools->logger('Send email', 'Skipped');
   goto step_finish;
 }
 
