@@ -124,4 +124,36 @@ class Common {
 
   }
 
+  /**
+   * @param $zoho
+   *
+   * @return object (json)
+   */
+  public function getNextInvoiceNumber($zoho) {
+    try {
+      $parameters = array(
+        'sort_column' => 'created_time',
+        'page' => 1,
+        'per_page' => 1,
+      );
+      $invoice = $zoho->InvoicesList($parameters);
+      $invoice = array_pop($invoice);
+      $invoice_number = $invoice['invoice_number'];
+      $next_invoice_number = explode('-', $invoice_number);
+      if (isset($next_invoice_number[1])) {
+        $next_invoice_number_suffix_length = strlen($next_invoice_number[1]);
+        $next_invoice_number[1]++;
+        $next_invoice_number[1] = str_pad($next_invoice_number[1], $next_invoice_number_suffix_length, '0',
+          STR_PAD_LEFT);
+        $next_invoice_number = implode('-', $next_invoice_number);
+        return json_encode(array('next_invoice_number' => $next_invoice_number));
+      }
+      else {
+        return json_encode(array('error', 'Can\'t determinate next invoice number.'));
+      }
+    } catch (\Exception $e) {
+      return json_encode(array('error', $zoho->lastRequest['dataRaw']));
+    }
+  }
+
 }

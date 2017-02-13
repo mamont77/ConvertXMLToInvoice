@@ -1,10 +1,14 @@
 <?php
 require_once __DIR__ . '/vendor/Helpers/Config.class.php';
+require_once __DIR__ . '/vendor/Helpers/Common.class.php';
 require_once __DIR__ . '/vendor/ZohoBooksApi/ZohoBooksApi.php';
 
 use Helpers\Config;
+use Helpers\Common;
 
 $config = new Config();
+$tools = new Common();
+
 $config->load('./config/config.php');
 
 if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
@@ -17,11 +21,4 @@ $zoho = new ZohoBooksApi(
   $config->get('zoho.organizationID')
 );
 
-$contacts = $zoho->ContactsListAll();
-
-$output = array(
-  'contacts' => $contacts,
-  'count' => count($contacts),
-);
-
-print json_encode($output);
+print $tools->getNextInvoiceNumber($zoho);
