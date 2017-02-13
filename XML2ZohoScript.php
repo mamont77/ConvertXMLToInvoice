@@ -118,28 +118,26 @@ try {
 // Preparing an Invoice.
 $invoice_data = array();
 
+// Add Salesperson data.
 if ($xml_data->WorkSummary->Invoicing->Client->Salesperson) {
-  $salesperson = (string) $xml_data->WorkSummary->Invoicing->Client->Salesperson;
-  $result = $zoho->ContactsList(array('contact_name' => $salesperson));
-  if (empty($result)) {
-    $tools->logger('Salesperson doesn\'t exist', '', 'error');
-  }
-  elseif (count($result) > 1) {
-    $tools->logger('Result', $result);
-    $tools->logger('A few people found satisfying the specified criteria', '', 'error');
-  }
-  else {
-    $tools->logger('Salesperson has been found. Apply Salesperson to the invoice ',
-      'Company: ' . $result[0]['company_name']
-      . ' / First Name: ' . $result[0]['first_name']
-      . ' / Last Name: ' . $result[0]['last_name']);
-    $invoice_data['salesperson_name'] = $salesperson;
-  }
+  $invoice_data['salesperson_name'] = (string) $xml_data->WorkSummary->Invoicing->Client->Salesperson;
+}
+
+// Add Reseller data as custom field.
+if ($xml_data->WorkSummary->Invoicing->Client->Reseller) {
+  $invoice_data['custom_fields'] = array(
+    '0' => array(
+      'label' => 'Reseller',
+      'value' => (string) $xml_data->WorkSummary->Invoicing->Client->Reseller,
+    ),
+  );
 }
 
 if (!isset($xml_data->WorkSummary->Invoicing->LineItems)) {
   $tools->logger('Products not found in XML', '', 'error');
 }
+
+// Add Product items data.
 $invoice_items = array();
 foreach ($xml_data->WorkSummary->Invoicing->LineItems->Product as $key => $item) {
   $item = (array) $item;
@@ -180,6 +178,7 @@ $invoice_data += array(
   'line_items' => $invoice_items,
 );
 
+// Add NoteToClient data.
 if ($xml_data->WorkSummary->Invoicing->NoteToClient) {
   $invoice_data['notes'] = (string) $xml_data->WorkSummary->Invoicing->NoteToClient;
 }
@@ -201,6 +200,9 @@ try {
 } catch (Exception $e) {
   $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
 }
+
+
+exit;
 
 if ($attachment_file_path != '') {
   // Attach a file.
