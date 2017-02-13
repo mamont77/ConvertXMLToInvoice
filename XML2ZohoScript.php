@@ -20,7 +20,7 @@ if (@$_GET['appAuthToken'] != $config->get('app_authtoken')) {
   exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST)) {
   header('Location: /XML2ZohoForm.php');
   exit;
 }
@@ -37,6 +37,18 @@ $current_time = (string) time();
 
 if (!file_exists($archives_dir)) {
   mkdir($archives_dir, 0777, TRUE);
+}
+
+$charge_payment = TRUE;
+$send_email = TRUE;
+
+if (!isset($_POST['send_email']) || $_POST['send_email'] != '1') {
+  $send_email = FALSE;
+}
+
+if (!isset($_POST['charge_payment']) || $_POST['charge_payment'] != '1') {
+  $charge_payment = FALSE;
+  $send_email = FALSE;
 }
 
 // Check and move XML file.
@@ -201,9 +213,6 @@ try {
   $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
 }
 
-
-exit;
-
 if ($attachment_file_path != '') {
   // Attach a file.
   $mime_type = $tools->mime_content_type($attachment_file_path);
@@ -246,7 +255,7 @@ if ($attachment_file_path != '') {
 }
 
 // We can skip charge_payment. In this case we shouldn't sent an email.
-if (isset($_POST['charge_payment']) && trim($_POST['charge_payment']) == '1') {
+if ($charge_payment === TRUE) {
   goto step_charge_payment;
 }
 else {
@@ -349,7 +358,7 @@ if ($invoice_was_paid === FALSE) {
 step_send_email:
 
 // We can skip send_email.
-if (isset($_POST['send_email']) && trim($_POST['send_email']) == '1' && $invoice_was_paid === TRUE) {
+if ($send_email === TRUE && $invoice_was_paid === TRUE) {
   // Nothing to do.
 }
 else {

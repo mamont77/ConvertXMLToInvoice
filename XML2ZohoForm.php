@@ -59,15 +59,17 @@ $config->load('./config/config.php');
                 <label for="form-charge-payment"
                        class="col-lg-2 control-label"><?php echo $config->get('form_fields.charge_payment'); ?></label>
                 <div class="col-lg-10">
-                    <input class="" id="form-charge-payment" name="charge_payment" type="checkbox" value="1">
+                    <input class="" id="form-charge-payment" name="charge_payment" type="checkbox" value="1" checked>
                 </div>
             </div>
             <div class="form-group">
                 <label for="form-send-email"
                        class="col-lg-2 control-label"><?php echo $config->get('form_fields.send_email'); ?></label>
                 <div class="col-lg-10">
-                    <input class="" id="form-send-email" name="send_email" type="checkbox" value="1">
-                    <p class="help-block">Ignored if "<?php echo $config->get('form_fields.charge_payment'); ?>" unchecked or a payment unsuccessful.</p>
+                    <input class="" id="form-send-email" name="send_email" type="checkbox" value="1" checked>
+                    <p class="help-block">Ignored in cases if "<?php
+                      echo $config->get('form_fields.charge_payment');
+                      ?>" is unchecked or a payment unsuccessful.</p>
                 </div>
             </div>
             <div class="form-group">
