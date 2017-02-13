@@ -378,6 +378,9 @@ $parameters = array(
   'send_customer_statement' => TRUE,
   'send_attachment' => TRUE,
   'send_from_org_email_id' => TRUE,
+  'cc_mail_ids' => array(
+    $config->get('zoho.cc_for_mail'),
+  ),
 );
 
 // Find primary and secondary emails.
