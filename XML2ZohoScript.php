@@ -216,7 +216,10 @@ try {
 if ($attachment_file_path != '') {
   // Attach a file.
   $mime_type = $tools->mime_content_type($attachment_file_path);
-  $parameters = new CURLFile($attachment_file_path, $mime_type, $attachment_file_name);
+  $parameters = array(
+    'attachment' => new CURLFile($attachment_file_path, $mime_type, $attachment_file_name),
+    //'can_send_in_mail' => TRUE,
+  );
   $tools->logger('Append the attachment to the invoice', $invoice_number);
   try {
     $result = $zoho->makeApiRequest(
@@ -232,7 +235,6 @@ if ($attachment_file_path != '') {
   // Update "can_send_in_mail" param.
   // You don't have permission to perform this operation.
   // Please contact your Administrator.
-  // Commented for now.
   /**
    * For testing/debugging.
    */

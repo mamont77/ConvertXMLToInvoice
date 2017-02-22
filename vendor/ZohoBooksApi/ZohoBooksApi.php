@@ -259,14 +259,12 @@ class ZohoBooksApi {
       $fullURL .= $query ? '&' . http_build_query($query) : '';
     }
     else {
-      if ($query instanceof CURLFile) {
+      if (isset($query['attachment']) && $query['attachment'] instanceof CURLFile) {
         curl_setopt($ch, CURLOPT_POST, TRUE); // Enable posting.
         curl_setopt(
           $ch,
           CURLOPT_POSTFIELDS,
-          array(
-            'attachment' => $query,
-          )
+          $query
         );
       }
       else {
