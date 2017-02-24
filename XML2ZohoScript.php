@@ -218,7 +218,7 @@ if ($attachment_file_path != '') {
   $mime_type = $tools->mime_content_type($attachment_file_path);
   $parameters = array(
     'attachment' => new CURLFile($attachment_file_path, $mime_type, $attachment_file_name),
-    //'can_send_in_mail' => TRUE,
+    'can_send_in_mail' => 'TRUE',
   );
   $tools->logger('Append the attachment to the invoice', $invoice_number);
   try {
@@ -231,29 +231,6 @@ if ($attachment_file_path != '') {
     $tools->logger(
       'Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
   }
-
-  // Update "can_send_in_mail" param.
-  // You don't have permission to perform this operation.
-  // Please contact your Administrator.
-  /**
-   * For testing/debugging.
-   */
-  // $invoice_id = '159812000000866001';
-  $tools->logger('Try to set "can_send_in_mail" = TRUE for attachment');
-  $parameters = array(
-    'can_send_in_mail' => TRUE,
-  );
-  try {
-    $result = $zoho->makeApiRequest(
-      'invoices/' . $invoice_id . '/attachment',
-      'PUT',
-      $parameters
-    );
-    $tools->logger('Zoho Result', $zoho->lastRequest['zohoMessage']);
-  } catch (Exception $e) {
-    $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
-  }
-
 }
 
 // We can skip charge_payment. In this case we shouldn't sent an email.

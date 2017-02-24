@@ -128,7 +128,7 @@ class ZohoBooksApi {
     $apiRequestsLimit = 150
   ) {
     // save auth info
-    $this->authToken      = $authToken;
+    $this->authToken = $authToken;
     $this->organizationId = $organizationId;
 
     // init counters to check for limits
@@ -175,7 +175,7 @@ class ZohoBooksApi {
 
     // if more then 60 seconds passed - re-init
     if ($_delta > 60) {
-      $this->apiRequestsTs    = time();
+      $this->apiRequestsTs = time();
       $this->apiRequestsCount = 1;
       return;
     }
@@ -232,14 +232,16 @@ class ZohoBooksApi {
 
     // init cURL
     $ch = curl_init();
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
-    curl_setopt(
-      $ch,
-      CURLOPT_HTTPHEADER,
-      array('Accept: application/json', 'Expect:')
-    );
+    if (isset($query['attachment']) && $query['attachment'] instanceof CURLFile) {
+      curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: multipart/form-data'));
+    }
+    else {
+      curl_setopt($ch, CURLOPT_HTTPHEADER, array('Accept: application/json', 'Expect:'));
+    }
 
     if ($this->is_debug === TRUE) {
       curl_setopt($ch, CURLOPT_VERBOSE, TRUE);
@@ -248,7 +250,7 @@ class ZohoBooksApi {
     }
 
     // add auth info to URL
-    $auth    = array(
+    $auth = array(
       'authtoken' => $this->authToken,
       'organization_id' => $this->organizationId,
     );
@@ -261,11 +263,8 @@ class ZohoBooksApi {
     else {
       if (isset($query['attachment']) && $query['attachment'] instanceof CURLFile) {
         curl_setopt($ch, CURLOPT_POST, TRUE); // Enable posting.
-        curl_setopt(
-          $ch,
-          CURLOPT_POSTFIELDS,
-          $query
-        );
+        //curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $query);
       }
       else {
         $Q = array('JSONString' => json_encode($query));
@@ -332,7 +331,7 @@ class ZohoBooksApi {
     }
 
     // check Zoho Books response code
-    $this->lastRequest['zohoCode']    = $this->lastRequest['data']['code'];
+    $this->lastRequest['zohoCode'] = $this->lastRequest['data']['code'];
     $this->lastRequest['zohoMessage'] = $this->lastRequest['data']['message'];
 
     // verify zoho code
@@ -355,7 +354,7 @@ class ZohoBooksApi {
       'message' => NULL,
       'page_context' => NULL,
     );
-    $jsonData  = array_diff_key($this->lastRequest['data'], $_toRemove);
+    $jsonData = array_diff_key($this->lastRequest['data'], $_toRemove);
     switch (count($jsonData)) {
       case 0:
         $this->lastRequest['zohoResponse'] = $this->lastRequest['zohoCode'];
@@ -462,7 +461,7 @@ class ZohoBooksApi {
       $args[0]['page'] = $page++;
 
       // get data and append to array
-      $R    = $this->__call($method, $args);
+      $R = $this->__call($method, $args);
       $rows = array_merge($rows, $R);
 
       // check if we have more pages - if not, stop
