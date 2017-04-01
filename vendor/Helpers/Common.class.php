@@ -9,6 +9,44 @@ namespace Helpers;
 class Common {
 
   /**
+   * @var bool
+   */
+  public $error = FALSE;
+
+  /**
+   * @var bool
+   */
+  public $warning = FALSE;
+
+  /**
+   * @return bool
+   */
+  public function isError() {
+    return $this->error;
+  }
+
+  /**
+   * @param bool $error
+   */
+  public function setError($error) {
+    $this->error = $error;
+  }
+
+  /**
+   * @return bool
+   */
+  public function isWarning() {
+    return $this->warning;
+  }
+
+  /**
+   * @param bool $warning
+   */
+  public function setWarning($warning) {
+    $this->warning = $warning;
+  }
+
+  /**
    * @param string $label
    * @param string $message
    * @param bool $type
@@ -20,6 +58,7 @@ class Common {
     $style = '';
     if ($type == 'error') {
       $style = 'style="color: red;"';
+      $this->setError(TRUE);
     }
     echo '<div class="logger" ' . $style . '><b>' . $label . ':</b> ' . $message . '</div>';
     if ($type == 'error') {

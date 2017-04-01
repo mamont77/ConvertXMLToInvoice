@@ -35,6 +35,26 @@ $next_invoice_number = $next_invoice_number->next_invoice_number;
     <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" media="screen">
 </head>
 <style type="text/css">
+    /* Sticky footer styles */
+    html {
+        position: relative;
+        min-height: 100%;
+    }
+
+    body {
+        /* Margin bottom by footer height */
+        margin-bottom: 60px;
+    }
+
+    .footer {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        /* Set the fixed height of the footer here */
+        height: 60px;
+        background-color: #f5f5f5;
+    }
+
     .jumbotron {
         padding: 15px 0;
     }
@@ -135,7 +155,7 @@ $next_invoice_number = $next_invoice_number->next_invoice_number;
     </div>
 
 </div>
-<footer class="bs-docs-footer">
+<footer class="footer bs-docs-footer">
     <div class="container">
         <ul class="bs-docs-footer-links">
             <li>

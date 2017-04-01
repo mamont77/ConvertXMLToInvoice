@@ -25,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST)) {
   exit;
 }
 
+ob_start();
+
 // Prepare something.
 $archives_dir = __DIR__ . '/' . $config->get('paths.archives') . '/';
 $allowed_xml_extensions = $config->get('allowed_extensions.xml');
@@ -34,6 +36,9 @@ $xml_file_path = '';
 $attachment_file_name = '';
 $attachment_file_path = '';
 $current_time = (string) time();
+$invoice_number = '';
+$invoice_id = '';
+$invoice_total = '';
 
 if (!file_exists($archives_dir)) {
   mkdir($archives_dir, 0777, TRUE);
@@ -205,10 +210,6 @@ try {
   $invoice_total = $invoice['currency_symbol'] . $invoice['total'];
   $tools->logger('Invoice has been created with ID / NUMBER', $invoice_id . ' / ' . $invoice_number);
   $tools->logger('Invoice total', $invoice_total);
-  echo '<a href="https://books.zoho.com/app#/invoices/'
-       . $invoice_id
-       . '" target="_blank">Open in Zoho!</a>'
-       . ' Or upload <a href="/XML2ZohoForm.php">another</a> XML.<br />';
 } catch (Exception $e) {
   $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
 }
@@ -239,6 +240,7 @@ if ($charge_payment === TRUE) {
 }
 else {
   $tools->logger('Charge payment', 'Skipped');
+  $tools->setWarning(TRUE);
   goto step_finish;
 }
 
@@ -332,6 +334,7 @@ if ($invoice_was_paid === FALSE && is_array($contact['cards']) && !empty($contac
 
 if ($invoice_was_paid === FALSE) {
   $tools->logger('The client doesn\'t have any credit note or credit card or unsuccessful. Skipped.');
+  $tools->setWarning(TRUE);
 }
 
 step_send_email:
@@ -342,6 +345,7 @@ if ($send_email === TRUE && $invoice_was_paid === TRUE) {
 }
 else {
   $tools->logger('Send email', 'Skipped');
+  $tools->setWarning(TRUE);
   goto step_finish;
 }
 
@@ -404,3 +408,172 @@ try {
 
 step_finish:
 $tools->logger('Total Result', 'FIHISHED');
+$details = ob_get_contents();
+ob_end_clean();
+?><!DOCTYPE html>
+<html>
+<head>
+    <title>Zoho Books API Result</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" media="screen">
+</head>
+<style type="text/css">
+    /* Sticky footer styles */
+    html {
+        position: relative;
+        min-height: 100%;
+    }
+
+    body {
+        /* Margin bottom by footer height */
+        margin-bottom: 60px;
+    }
+
+    .footer {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        /* Set the fixed height of the footer here */
+        height: 60px;
+        background-color: #f5f5f5;
+    }
+
+    .row {
+        margin-bottom: 15px;
+    }
+
+    .summary-info {
+        padding-top: 30px;
+    }
+
+    .summary-info .label {
+        padding: 15px 20px;
+        display: inline-block;
+    }
+
+    .summary-info .glyphicon {
+        font-size: 32px;
+        line-height: 38px;
+    }
+
+    .summary-info h1 {
+        display: inline-block;
+        margin: 0;
+        position: relative;
+        top: -5px;
+    }
+
+    .summary-info a {
+        color: #fff;
+    }
+
+    .summary-info h1 .label {
+        font-size: 32px;
+        line-height: 38px;
+    }
+
+    .total-info strong {
+        font-size: 24px;
+    }
+
+    .bs-docs-footer {
+        border-top: 1px solid #ccc;
+        padding: 15px;
+        background-color: #eee;
+    }
+
+    .bs-docs-footer-links {
+        margin-bottom: 0;
+    }
+
+    .bs-docs-footer-links li {
+        display: inline;
+        margin-right: 15px;
+    }
+</style>
+<body>
+<div class="container">
+
+    <div class="row">
+
+        <div class="summary-info">
+          <?php if ($tools->isError() === TRUE): ?>
+              <span class="label label-danger"><span class="glyphicon glyphicon-fire" aria-hidden="true"></span></span>
+          <?php elseif ($tools->isWarning() === TRUE): ?>
+              <span class="label label-warning"><span class="glyphicon glyphicon-warning-sign"
+                                                      aria-hidden="true"></span></span>
+          <?php else: ?>
+              <span class="label label-success"><span class="glyphicon glyphicon-ok" aria-hidden="true"></span></span>
+          <?php endif; ?>
+          <?php if ($invoice_id != ''): ?>
+              <h1>
+                <span class="label label-info">Invoice <a type="button"
+                                                          href="https://books.zoho.com/app#/invoices/<?php print $invoice_id; ?>"
+                                                          target="_blank">
+                  <?php print $invoice_number; ?>
+                    </a>
+                </span>
+              </h1>
+          <?php endif; ?>
+        </div>
+    </div>
+  <?php if ($invoice_total != ''): ?>
+      <div class="row">
+          <div class="total-info">
+              Invoice total: <strong><?php print $invoice_total; ?></strong>
+          </div>
+      </div>
+  <?php endif; ?>
+
+    <div class="row">
+        <a type="button" href="https://books.zoho.com/app#/invoices/<?php print $invoice_id; ?>" target="_blank"
+           class="btn btn-primary btn-lg">Open in Zoho</a>
+        <a type="button" href="/XML2ZohoForm.php" class="btn btn-default btn-lg">Upload another XML</a>
+    </div>
+
+    <div class="row">
+        <pre><?php print $details; ?></pre>
+    </div>
+
+    <div class="row">
+        <div class="panel panel-default">
+            <div class="panel-heading">Notes</div>
+            <div class="panel-body">
+                <div class="alert alert-success" role="alert">
+                    <span class="glyphicon glyphicon-ok" aria-hidden="true"></span>
+                    <strong>Completely okay!</strong>
+                    Invoice created, credits consumed, email sent.
+                </div>
+                <div class="alert alert-warning" role="alert">
+                    <span class="glyphicon glyphicon-warning-sign" aria-hidden="true"></span>
+                    <strong>Needs attention!</strong>
+                    Invoice created, but insufficient credits or manual credit card charge required, or mail was skipped.
+                </div>
+                <div class="alert alert-danger" role="alert">
+                    <span class="glyphicon glyphicon-fire" aria-hidden="true"></span>
+                    <strong>Oh snap!</strong>
+                    Failure of some kind.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+<footer class="footer bs-docs-footer">
+    <div class="container">
+        <ul class="bs-docs-footer-links">
+            <li>
+                <a href="/XML2ZohoContactList.php?appAuthToken=<?php print $config->get('app_authtoken'); ?>"
+                   target="_blank">Get ALL Contacts</a>
+            </li>
+            <li>
+                <a href="/XML2ZohoGetLastInvoiceNumber.php?appAuthToken=<?php print $config->get('app_authtoken'); ?>"
+                   target="_blank">Get Next Invoice Number</a>
+            </li>
+        </ul>
+</footer>
+</body>
+</html>
+<?php
