@@ -213,13 +213,13 @@ if (is_array($credit_notes) && !empty($credit_notes)) {
   // Add balance info.
   if ($total_credits <= 0) {
     $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . ".\r\n";
     $invoice_data['notes'] .= "Your prepaid credit balance is zero.\r\n";
     $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to refill.\r\n";
   }
   elseif ($total_credits < 200) {
     $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . ".\r\n";
     $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . ($total_credits - $predicted_total) . ".\r\n";
     $invoice_data['notes'] .= "You are about to run out of credits!\r\n";
     $invoice_data['notes'] .= "You should refill to preserve your volume discount, instead of paying spot pricing.\r\n";
@@ -227,21 +227,21 @@ if (is_array($credit_notes) && !empty($credit_notes)) {
   }
   elseif ($total_credits < 1000) {
     $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . ".\r\n";
     $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . ($total_credits - $predicted_total) . ".\r\n";
     $invoice_data['notes'] .= "You should refill to preserve your volume discount.\r\n";
     $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to proceed.!\r\n";
   }
   else {
     $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . ".\r\n";
     $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . ($total_credits - $predicted_total) . ".\r\n";
   }
 }
 else {
   // The same as if ($total_credits <= 0).
   $invoice_data['notes'] .= "\r\n";
-  $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+  $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . ".\r\n";
   $invoice_data['notes'] .= "Your prepaid credit balance is zero.\r\n";
   $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to refill.\r\n";
 }
