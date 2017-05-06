@@ -156,6 +156,7 @@ if (!isset($xml_data->WorkSummary->Invoicing->LineItems)) {
 
 // Add Product items data.
 $invoice_items = array();
+$predicted_total = 0;
 foreach ($xml_data->WorkSummary->Invoicing->LineItems->Product as $key => $item) {
   $item = (array) $item;
 
@@ -173,6 +174,7 @@ foreach ($xml_data->WorkSummary->Invoicing->LineItems->Product as $key => $item)
     'quantity' => $quantity,
     'rate' => $rate,
   );
+  $predicted_total += (float) $item['UnitPrice'] * $quantity;
 }
 
 $invoice_data += array(
@@ -198,6 +200,50 @@ $invoice_data += array(
 // Add NoteToClient data.
 if ($xml_data->WorkSummary->Invoicing->NoteToClient) {
   $invoice_data['notes'] = (string) $xml_data->WorkSummary->Invoicing->NoteToClient;
+}
+
+// Get credit notes.
+$total_credits = 0;
+$credit_notes = $zoho->CreditNotesList(array('customer_id' => $contact_id, 'status' => 'open'));
+if (is_array($credit_notes) && !empty($credit_notes)) {
+  $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
+  $credit_note = $zoho->CreditNotesGet($credit_note_id);
+  $total_credits = $credit_note['total'];
+
+  // Add balance info.
+  if ($total_credits <= 0) {
+    $invoice_data['notes'] .= "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "Your prepaid credit balance is zero.\r\n";
+    $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to refill.\r\n";
+  }
+  elseif ($total_credits < 200) {
+    $invoice_data['notes'] .= "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . ($total_credits - $predicted_total) . ".\r\n";
+    $invoice_data['notes'] .= "You are about to run out of credits!\r\n";
+    $invoice_data['notes'] .= "You should refill to preserve your volume discount, instead of paying spot pricing.\r\n";
+    $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to proceed.!\r\n";
+  }
+  elseif ($total_credits < 1000) {
+    $invoice_data['notes'] .= "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . ($total_credits - $predicted_total) . ".\r\n";
+    $invoice_data['notes'] .= "You should refill to preserve your volume discount.\r\n";
+    $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to proceed.!\r\n";
+  }
+  else {
+    $invoice_data['notes'] .= "\r\n";
+    $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+    $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . ($total_credits - $predicted_total) . ".\r\n";
+  }
+}
+else {
+  // The same as if ($total_credits <= 0).
+  $invoice_data['notes'] .= "\r\n";
+  $invoice_data['notes'] .= "Net Balance: USD$" . ($total_credits - $predicted_total) . "\r\n";
+  $invoice_data['notes'] .= "Your prepaid credit balance is zero.\r\n";
+  $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to refill.\r\n";
 }
 
 $tools->logger('Creating invoice: Try send the data to Zoho', $invoice_data);
@@ -276,32 +322,26 @@ $tools->logger('STEP 2', 'Handle Payment');
 //$invoice_id = '159812000000864025';
 
 $invoice_was_paid = FALSE;
-$credit_notes = $zoho->CreditNotesList(array('customer_id' => $contact_id, 'status' => 'open'));
-if (is_array($credit_notes) && !empty($credit_notes)) {
-  $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
-  $credit_note = $zoho->CreditNotesGet($credit_note_id);
-  $total_credits = $credit_note['total'];
-  if ($total_credits >= $invoice['total']) {
-    // Try to pay by credit notes. Apply credit notes.
-    try {
-      $parameters = array(
-        'apply_creditnotes' => array(
-          array(
-            'creditnote_id' => $credit_note_id,
-            'amount_applied' => $invoice['total'],
-          ),
+if ($total_credits >= $invoice['total']) {
+  // Try to pay by credit notes. Apply credit notes.
+  try {
+    $parameters = array(
+      'apply_creditnotes' => array(
+        array(
+          'creditnote_id' => $credit_note_id,
+          'amount_applied' => $invoice['total'],
         ),
-      );
-      $result = $zoho->makeApiRequest(
-        'invoices/' . $invoice_id . '/credits',
-        'POST',
-        $parameters
-      );
-      $tools->logger('Apply credits to the invoice', $zoho->lastRequest['zohoMessage']);
-      $invoice_was_paid = TRUE;
-    } catch (Exception $e) {
-      $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-    }
+      ),
+    );
+    $result = $zoho->makeApiRequest(
+      'invoices/' . $invoice_id . '/credits',
+      'POST',
+      $parameters
+    );
+    $tools->logger('Apply credits to the invoice', $zoho->lastRequest['zohoMessage']);
+    $invoice_was_paid = TRUE;
+  } catch (Exception $e) {
+    $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
   }
 }
 
@@ -548,7 +588,8 @@ ob_end_clean();
                 <div class="alert alert-warning" role="alert">
                     <span class="glyphicon glyphicon-warning-sign" aria-hidden="true"></span>
                     <strong>Needs attention!</strong>
-                    Invoice created, but insufficient credits or manual credit card charge required, or mail was skipped.
+                    Invoice created, but insufficient credits or manual credit card charge required, or mail was
+                    skipped.
                 </div>
                 <div class="alert alert-danger" role="alert">
                     <span class="glyphicon glyphicon-fire" aria-hidden="true"></span>
