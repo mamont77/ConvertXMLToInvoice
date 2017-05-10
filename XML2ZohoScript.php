@@ -120,6 +120,12 @@ $zoho = new ZohoBooksApi($zoho_authtoken, $config->get('zoho.organizationID'));
 //goto step_send_email;
 //goto step_finish;
 
+// Get organization info.
+$organization = $zoho->makeApiRequest('organizations');
+$organization = array_pop($organization['zohoResponse']);
+$organization_mail = $organization['email'];
+$organization_phone = '514 743 1628'; // Fixme: Get full data about organization "403 Forbidden" for now.
+
 step_convert:
 // STEP 1: ConvertXMLToInvoice.
 $tools->logger('STEP 1', 'ConvertXMLToInvoice');
@@ -197,14 +203,21 @@ $invoice_data += array(
   'line_items' => $invoice_items,
 );
 
-// Add NoteToClient data.
-if ($xml_data->WorkSummary->Invoicing->NoteToClient) {
-  $invoice_data['notes'] = (string) $xml_data->WorkSummary->Invoicing->NoteToClient;
+// Get credit card ID.
+$card_id = FALSE;
+if (is_array($contact['cards']) && !empty($contact['cards'])) {
+  foreach ($contact['cards'] as $card) {
+    if ($card['status'] == 'active' && $card['is_expired'] === FALSE) {
+      $card_id = $card['card_id'];
+      break;
+    }
+  }
 }
 
 // Get credit notes.
 $total_credits = 0;
 $credit_notes = $zoho->CreditNotesList(array('customer_id' => $contact_id, 'status' => 'open'));
+$invoice_data['notes'] = '';
 if (is_array($credit_notes) && !empty($credit_notes)) {
   $credit_note_id = (string) $credit_notes[0]['creditnote_id'];
   $credit_note = $zoho->CreditNotesGet($credit_note_id);
@@ -212,39 +225,90 @@ if (is_array($credit_notes) && !empty($credit_notes)) {
 
   // Add balance info.
   $predicted_balance = $total_credits - $predicted_total;
-  if ($predicted_balance <= 0) {
-    $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$0.\r\n";
-    $invoice_data['notes'] .= "Your prepaid credit balance is zero.\r\n";
-    $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to refill.\r\n";
+  if ($total_credits == 0) {
+    if ($card_id !== FALSE) {
+      $invoice_data['notes'] .= "Your prepaid balance is at zero; spot pricing was used for this invoice.\r\n";
+      $invoice_data['notes'] .= "We have your credit card on file and will charge it to clear this invoice.\r\n";
+      $invoice_data['notes'] .= "To refill your prepaid balance and use volume pricing, contact $organization_mail or call $organization_phone.\r\n";
+      $invoice_data['notes'] .= "Thank you!\r\n";
+    }
+    else {
+      $invoice_data['notes'] .= "Your prepaid balance is at zero, and we do not have your credit card on file.\r\n";
+      $invoice_data['notes'] .= "Please contact $organization_mail or call $organization_phone to get this cleared up.\r\n";
+      $invoice_data['notes'] .= "Thank you!\r\n";
+    }
+  }
+  elseif ($predicted_balance < 0) {
+    if ($card_id !== FALSE) {
+      $invoice_data['notes'] .= "Your prepaid balance was insufficient to cover this invoice.\r\n";
+      $invoice_data['notes'] .= "You can choose to refill your prepaid balance to preserve your volume pricing, or return to spot pricing ($0.40/tick).\r\n";
+      $invoice_data['notes'] .= "To refill, contact $organization_mail or call $organization_phone.\r\n";
+      $invoice_data['notes'] .= "We have your credit card on file and will charge it to clear the balance on this invoice if we have not heard from you in three days.\r\n";
+      $invoice_data['notes'] .= "Thank you!\r\n";
+    }
+    else {
+      $invoice_data['notes'] .= "Your prepaid balance was insufficient to cover this invoice.\r\n";
+      $invoice_data['notes'] .= "We do not have your credit card on file.\r\n";
+      $invoice_data['notes'] .= "Please contact $organization_mail or call $organization_phone to get this cleared up.\r\n";
+      $invoice_data['notes'] .= "Thank you!\r\n";
+    }
+  }
+  elseif ($predicted_balance == 0) {
+    if ($card_id !== FALSE) {
+      $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance is zero.\r\n";
+      $invoice_data['notes'] .= "To continue taking advantage of volume pricing on future invoices, please contact $organization_mail or call $organization_phone to refill your balance. We’ll use spot pricing if we don’t hear from you.\r\n";
+      $invoice_data['notes'] .= "Thank you!\r\n";
+    }
+    else {
+      $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance is zero.\r\n";
+      $invoice_data['notes'] .= "We do not have your credit card on file.\r\n";
+      $invoice_data['notes'] .= "Please contact $organization_mail or call $organization_phone to set this up for smooth processing of future invoices.\r\n";
+      $invoice_data['notes'] .= "Thank you!\r\n";
+    }
   }
   elseif ($predicted_balance < 200) {
-    $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$" . $predicted_balance . ".\r\n";
-    $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . $predicted_balance . ".\r\n";
-    $invoice_data['notes'] .= "You are about to run out of credits!\r\n";
-    $invoice_data['notes'] .= "You should refill to preserve your volume discount, instead of paying spot pricing.\r\n";
-    $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to proceed.!\r\n";
+    if ($card_id !== FALSE) {
+      $invoice_data['notes'] .= "You are about to run out of credits!\r\n";
+      $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance is $" . $predicted_balance . ".\r\n";
+      $invoice_data['notes'] .= "You should refill to preserve your volume discount, instead of paying spot pricing.\r\n";
+      $invoice_data['notes'] .= "Contact $organization_mail or $organization_phone if you would like to proceed.\r\n";
+    }
+    else {
+      $invoice_data['notes'] .= "You are about to run out of credits and we do not have your credit card on file.\r\n";
+      $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance is $" . $predicted_balance . ".\r\n";
+      $invoice_data['notes'] .= "Please contact $organization_mail or call $organization_phone to get your credit card number on file, to ensure smooth processing of future invoices.\r\n";
+      $invoice_data['notes'] .= "Thank you!\r\n";
+    }
   }
   elseif ($predicted_balance < 1000) {
-    $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$" . $predicted_balance . ".\r\n";
-    $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . $predicted_balance . ".\r\n";
-    $invoice_data['notes'] .= "You should refill to preserve your volume discount.\r\n";
-    $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to proceed.!\r\n";
+    if ($card_id !== FALSE) {
+      $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance is $" . $predicted_balance . ".\r\n";
+      $invoice_data['notes'] .= "Contact $organization_mail or $organization_phone if you would like to add more credits.\r\n";
+    }
+    else {
+      $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance is $" . $predicted_balance . ".\r\n";
+      $invoice_data['notes'] .= "We do not have your credit card on file. Please contact $organization_mail or call $organization_phone to ensure smooth processing of future invoices.\r\n";
+    }
   }
   else {
-    $invoice_data['notes'] .= "\r\n";
-    $invoice_data['notes'] .= "Net Balance: USD$" . $predicted_balance . ".\r\n";
-    $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance will be USD$" . $predicted_balance . ".\r\n";
+    $invoice_data['notes'] .= "After covering this invoice, your prepaid credit balance is $" . $predicted_balance . ".\r\n";
   }
 }
 else {
-  // The same as if ($total_credits <= 0), in case if the client hasn't credits and prefer to pay by credit card.
-  $invoice_data['notes'] .= "\r\n";
-  $invoice_data['notes'] .= "Net Balance: USD$0.\r\n";
-  $invoice_data['notes'] .= "Your prepaid credit balance is zero.\r\n";
-  $invoice_data['notes'] .= "Contact Sales@JaleaTech.com or 514 743 1628 if you would like to refill.\r\n";
+  if ($card_id !== FALSE) {
+    $invoice_data['notes'] .= "We have your credit card on file and will charge it to clear this invoice. Thank you!\r\n";
+  }
+  else {
+    $invoice_data['notes'] .= "We do not have your credit card on file.\r\n";
+    $invoice_data['notes'] .= "Please contact $organization_mail or $organization_phone phone to get this cleared up.\r\n";
+    $invoice_data['notes'] .= "Thank you!\r\n";
+  }
+}
+
+// Add NoteToClient data.
+if ($xml_data->WorkSummary->Invoicing->NoteToClient) {
+  $invoice_data['notes'] .= "---------------------------------------\r\n";
+  $invoice_data['notes'] .= (string) $xml_data->WorkSummary->Invoicing->NoteToClient;
 }
 
 $tools->logger('Creating invoice: Try send the data to Zoho', $invoice_data);
@@ -295,33 +359,6 @@ step_charge_payment:
 // STEP 2: Handle Payment.
 $tools->logger('STEP 2', 'Handle Payment');
 
-/**
- * For testing/debugging.
- * Ruslan (Credit Note) UNUSED CREDITS USD$1,000.00
- */
-//$contact_id = '159812000000849015';
-//$invoice['total'] = '0.01';
-//$invoice_id = '159812000000864039';
-/**
- * For testing/debugging.
- * Ruslan (Credit Note) UNUSED CREDITS ZERO
- */
-//$contact_id = '159812000000854121';
-//$invoice['total'] = '0.01';
-//$invoice_id = '159812000000867017';
-//$contact['cards'][0] = array(
-//  'card_id' => '159812000000854155',
-//  'status' => 'active',
-//  'is_expired' => FALSE,
-//);
-/**
- * For testing/debugging.
- * Ruslan (no payment method)
- */
-//$contact_id = '159812000000854133';
-//$invoice['total'] = '0.01';
-//$invoice_id = '159812000000864025';
-
 $invoice_was_paid = FALSE;
 if ($total_credits >= $invoice['total']) {
   // Try to pay by credit notes. Apply credit notes.
@@ -347,14 +384,7 @@ if ($total_credits >= $invoice['total']) {
 }
 
 // Try to pay by credit card.
-$card_id = NULL;
-if ($invoice_was_paid === FALSE && is_array($contact['cards']) && !empty($contact['cards'])) {
-  foreach ($contact['cards'] as $card) {
-    if ($card['status'] == 'active' && $card['is_expired'] === FALSE) {
-      $card_id = $card['card_id'];
-      break;
-    }
-  }
+if ($invoice_was_paid === FALSE && $card_id !== FALSE) {
   $parameters = array(
     'card_id' => $card_id,
     'payment_amount' => '',
