@@ -47,11 +47,14 @@ class Common {
   }
 
   /**
+   * Write log to the screen.
+   *
    * @param string $label
    * @param string $message
    * @param bool $type
+   * @param bool $token
    */
-  public function logger($label = '', $message = '', $type = FALSE) {
+  public function logger($label = '', $message = '', $type = FALSE, $token = FALSE) {
     if (is_array($message) && !empty($message)) {
       $message = json_encode($message);
     }
@@ -62,6 +65,7 @@ class Common {
     }
     echo '<div class="logger" ' . $style . '><b>' . $label . ':</b> ' . $message . '</div>';
     if ($type == 'error') {
+      echo '[<a type="button" href="/XML2ZohoForm.php" class="btn btn-default btn-lg">Upload another XML</a>] [<a type="button" href="/XML2ZohoContactList.php?appAuthToken=' . $token . '" class="btn btn-default btn-lg">See Client List</a>]';
       exit;
     }
   }

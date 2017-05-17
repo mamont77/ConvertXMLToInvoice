@@ -134,8 +134,8 @@ try {
   $contact = $zoho->ContactsGet($contact_id);
   $tools->logger('Contact was found in Zoho with ID', $contact_id);
 } catch (Exception $e) {
-  $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw'], 'error');
-  $tools->logger('Contact not found in Zoho by contactID', $contact_id, 'error');
+  $tools->logger('Zoho Exception', $zoho->lastRequest['dataRaw']);
+  $tools->logger('Client ID was not found in Zoho', $contact_id, 'error', $config->get('app_authtoken'));
 }
 
 // Preparing an Invoice.
