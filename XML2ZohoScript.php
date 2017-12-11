@@ -390,7 +390,7 @@ if ($total_credits >= $invoice['total']) {
 if ($invoice_was_paid === FALSE && $card_id !== FALSE) {
   $parameters = array(
     'card_id' => $card_id,
-    'payment_amount' => '',
+    'payment_amount' => $invoice['total'],
   );
   try {
     $result = $zoho->makeApiRequest(
