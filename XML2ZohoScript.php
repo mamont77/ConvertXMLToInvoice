@@ -396,7 +396,9 @@ if ($invoice_was_paid === FALSE && $card_id !== FALSE) {
     $result = $zoho->makeApiRequest(
       'invoices/' . $invoice_id . '/forcepay',
       'POST',
-      $parameters
+      $parameters,
+      FALSE,
+      TRUE
     );
     $tools->logger('Force pay by credit card', $zoho->lastRequest['zohoMessage']);
     $invoice_was_paid = TRUE;

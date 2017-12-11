@@ -192,10 +192,11 @@ class ZohoBooksApi {
   /**
    * Make actual API request using cURL.
    *
-   * @param string $url URL to send request to (relative, without domain)
+   * @param $url URL to send request to (relative, without domain)
    * @param string $method HTTP method to use (GET, POST, DELETE, etc)
    * @param array $query Array of parameters to send
-   * @param boolean $raw If true - do not do JSON decode (default = false)
+   * @param bool $raw If true - do not do JSON decode (default = false)
+   * @param bool $json_as_object
    *
    * @return array
    * @throws \ZohoBooksApiException
@@ -206,7 +207,8 @@ class ZohoBooksApi {
     $url,
     $method = 'GET',
     $query = array(),
-    $raw = FALSE
+    $raw = FALSE,
+    $json_as_object = FALSE
   ) {
     // reset lastRequest
     $this->lastRequest = array(
@@ -232,7 +234,7 @@ class ZohoBooksApi {
 
     // init cURL
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
@@ -267,8 +269,13 @@ class ZohoBooksApi {
         curl_setopt($ch, CURLOPT_POSTFIELDS, $query);
       }
       else {
-        $Q = array('JSONString' => json_encode($query));
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($Q));
+        if ($json_as_object === TRUE) {
+          curl_setopt($ch, CURLOPT_POSTFIELDS, $query);
+        }
+        else {
+          $Q = array('JSONString' => json_encode($query));
+          curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($Q));
+        }
       }
     }
 
